@@ -94,6 +94,11 @@ test("account, starters, history, three-level traces, safe artifact preview, int
 test("cancel an active run and display execution failure", async ({ page }) => {
   await signUp(page);
   await send(page, "等待取消");
+  const liveSummary = page.locator(".trace-summary");
+  await expect(liveSummary).toContainText("执行建模工具");
+  if ((await liveSummary.getAttribute("aria-expanded")) === "true")
+    await liveSummary.click();
+  await expect(liveSummary).toContainText("执行建模工具");
   await page.getByRole("button", { name: "停止执行" }).click();
   await expect(page.getByText("已停止本次执行。")).toBeVisible();
   await send(page, "测试失败");
@@ -190,12 +195,25 @@ if (process.env.FAMSUN_E2E_MODEL) {
     expect(parseInt((await parts.textContent())!, 10)).toBeGreaterThanOrEqual(
       6,
     );
+    const trace = page.getByRole("button", { name: /^执行过程/ });
+    if ((await trace.getAttribute("aria-expanded")) !== "true")
+      await trace.click();
+    const engineering = page
+      .locator(".node-toggle")
+      .filter({ hasText: /engineering/ })
+      .first();
+    if (
+      (await engineering.count()) &&
+      (await engineering.getAttribute("aria-expanded")) === "false"
+    )
+      await engineering.click();
+    await page.screenshot({ path: info.outputPath("archived-session.png") });
     await page.getByRole("button", { name: "放大预览" }).click();
     const before = await viewer.screenshot({
       path: info.outputPath("pellet-assembled.png"),
     });
-    await page.getByRole("slider", { name: "爆炸视图" }).fill("75");
-    await expect(page.getByText("75%", { exact: true })).toBeVisible();
+    await page.getByRole("slider", { name: "爆炸视图" }).press("End");
+    await expect(page.getByText("100%", { exact: true })).toBeVisible();
     const after = await viewer.screenshot({
       path: info.outputPath("pellet-exploded.png"),
     });

@@ -80,17 +80,46 @@ class ActivityTrace(AsyncCallbackHandler):
         self.emit = emit
         self.ancestors: dict[UUID, str] = {}
         self.active: dict[UUID, dict[str, Any]] = {}
+        self.dispatch_nodes: set[UUID] = set()
+        self.observed_calls: set[tuple[str, str]] = set()
 
     async def on_chain_start(
         self, serialized, inputs, *, run_id, parent_run_id=None, **kwargs
     ):
         self.ancestors[run_id] = self.ancestors.get(parent_run_id, self.root)
+        if (
+            kwargs.get("name") == "tools"
+            and (kwargs.get("metadata") or {}).get("langgraph_node") == "tools"
+        ):
+            self.dispatch_nodes.add(run_id)
 
     async def on_chain_end(self, outputs, *, run_id, **kwargs):
-        self.ancestors.pop(run_id, None)
+        parent = self.ancestors.pop(run_id, self.root)
+        if run_id not in self.dispatch_nodes:
+            return
+        self.dispatch_nodes.discard(run_id)
+        # Unknown tools and pre-dispatch middleware refusals never invoke BaseTool.
+        messages = outputs.get("messages", []) if isinstance(outputs, dict) else []
+        for index, msg in enumerate(messages):
+            if (
+                isinstance(msg, ToolMessage)
+                and msg.status == "error"
+                and (parent, msg.tool_call_id) not in self.observed_calls
+            ):
+                await self.emit(
+                    {
+                        "id": f"{run_id}/rejected/{index}",
+                        "parent_id": parent,
+                        "kind": "tool",
+                        "label": msg.name or "tool",
+                        "status": "failed",
+                        "detail": excerpt(msg.text),
+                    }
+                )
 
     async def on_chain_error(self, error, *, run_id, **kwargs):
         self.ancestors.pop(run_id, None)
+        self.dispatch_nodes.discard(run_id)
 
     async def start(self, run_id, parent_run_id, kind, label, detail=""):
         event = {
@@ -125,6 +154,10 @@ class ActivityTrace(AsyncCallbackHandler):
         **kwargs,
     ):
         name = serialized.get("name", "tool")
+        if tool_call_id := kwargs.get("tool_call_id"):
+            self.observed_calls.add(
+                (self.ancestors.get(parent_run_id, self.root), tool_call_id)
+            )
         arguments = inputs or {}
         is_task = name == "task"
         if is_task:
@@ -149,6 +182,20 @@ class ActivityTrace(AsyncCallbackHandler):
         await self.start(run_id, parent_run_id, "model", "模型响应")
 
     async def on_llm_end(self, response, *, run_id, **kwargs):
+        for batch_index, batch in enumerate(response.generations):
+            for gen_index, generation in enumerate(batch):
+                message = getattr(generation, "message", None)
+                for i, call in enumerate(getattr(message, "invalid_tool_calls", [])):
+                    await self.emit(
+                        {
+                            "id": f"{run_id}/invalid/{batch_index}/{gen_index}/{i}",
+                            "parent_id": str(run_id),
+                            "kind": "tool",
+                            "label": call.get("name") or "tool",
+                            "status": "failed",
+                            "detail": "模型返回了无法解析的工具参数",
+                        }
+                    )
         await self.finish(run_id, "completed")
 
     async def _exception(self, run_id, error):

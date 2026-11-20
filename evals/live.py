@@ -333,6 +333,9 @@ def write_report(output, results):
         )
         lines.extend(f"- {check}" for check in r["checks"])
         lines.extend(f"- 验收失败：{err}" for err in r["errors"])
+        if r.get("postmortem_collection"):
+            lines.append("- 此次运行已失败。结束后使用只读产物服务复查了该测试会话的工作卷。")
+            lines.extend("- 失败后复算：" + c for c in r.get("postmortem_checks", []))
         lines.extend(
             f"- 运行中失败步骤：{e['kind']} / {e['label']}（序号 {e['seq']}，详见轨迹）"
             for e in r["failed_steps"]

@@ -19,8 +19,8 @@ agent.example.org {
 - `FAMSUN_MAX_PARALLEL_RUNS` 默认 4，同时运行的任务共享模型额度与主机能力。每会话最多一个进行中的任务。对繁忙的服务，按模型吞吐、CPU 和峰值内存调整并发。
 - `FAMSUN_RUN_TIMEOUT` 默认 900 秒，`FAMSUN_SANDBOX_TIMEOUT` 默认 120 秒。图的单轮步数上限由 `FAMSUN_GRAPH_RECURSION_LIMIT` 配置，默认 160，包含 LangGraph 中间件步骤。SQLite 使用 WAL、本地磁盘和单 API 进程；指向同一个数据目录的第二个进程会拒绝启动。
 - 使用 `docker info` 和 `python -m famsun.doctor --strict` 检查 cgroup。在 rootless daemon 上应将控制器委派给运行 Docker 的服务账号，并在一个实际会话内确认 `cpu.max`、`memory.max` 和 `pids.max`。测试专用开关 `FAMSUN_ALLOW_UNENFORCED_CGROUPS=true` 允许在控制器缺失的主机进行功能测试。
-- 工作区及安装环境使用持久命名卷。部署者需给卷配置容量预算、告警和保留策略。可以通过 `FAMSUN_VOLUME_DRIVER` 和 `FAMSUN_VOLUME_OPTIONS`（字符串键值的 JSON 对象）传入支持持久卷配额的存储驱动设置。驱动必须按卷名分配独立空间。将所有卷指向相同的宿主目录或 NFS 子目录会破坏租户隔离。选项只用于新建卷。Docker 的默认 local 驱动按宿主文件系统可用空间增长。
-- 模型密钥仅在控制面进程环境中可见。模型提供方收到对话和工具结果，选择端点时应符合企业对工程数据的处理要求。工作区和数据库均应使用受访问控制的加密存储。用户会话 cookie 的默认有效期为七天。
+- 工作区及安装环境使用持久命名卷。部署者需给卷配置容量预算、告警和保留策略。可以通过 `FAMSUN_VOLUME_DRIVER` 和 `FAMSUN_VOLUME_OPTIONS`（字符串键值的 JSON 对象）传入支持持久卷配额的存储驱动设置。驱动必须按卷名分配独立空间。将所有卷指向相同的宿主目录或 NFS 子目录会破坏租户隔离。选项只用于新建卷。Docker 的默认 local 驱动按宿主文件系统可用空间增长。宿主宜采用支持写时复制的存储驱动；vfs 会为并发容器复制文件系统，验收期间需要额外的临时磁盘空间。
+- 默认使用流式 Chat Completions 以接收长工具调用。仅支持非流式的第三方端点可设置 `FAMSUN_LLM_STREAMING=false`。模型密钥仅在控制面进程环境中可见。模型提供方收到对话和工具结果，选择端点时应符合企业对工程数据的处理要求。工作区和数据库均应使用受访问控制的加密存储。用户会话 cookie 的默认有效期为七天。
 - API 账户使用 Argon2id；离职或权限撤销应由管理者处理。生产关闭开放注册。文件读取有权限、类型和大小检查，浏览器模型预览只接受自包含 GLB。单文件传输上限为 32 MiB。
 
 ## 备份、恢复与更新

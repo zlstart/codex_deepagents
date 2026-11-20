@@ -19,6 +19,7 @@ from langgraph.errors import GraphRecursionError
 from mcp.shared.exceptions import McpError
 from openai import APIConnectionError, APIStatusError
 
+from .budget import BudgetReminder
 from .trace import ActivityTrace, Emit
 
 SKILLS = "/opt/famsun/skills"
@@ -78,6 +79,7 @@ def build_model(settings):
         base_url=settings.llm_base_url,
         api_key=settings.llm_api_key,
         use_responses_api=False,
+        streaming=getattr(settings, "llm_streaming", True),
         timeout=120,
         max_retries=2,
     )
@@ -166,6 +168,8 @@ async def run_agent(
     }
     await emit({**agent_node, "status": "running"})
     status = "failed"
+    step_limit = getattr(settings, "graph_recursion_limit", 160)
+    budget = BudgetReminder(trace, step_limit, getattr(settings, "run_timeout", 900))
     try:
         tools = []
         if settings.mcp_enabled:
@@ -221,14 +225,15 @@ async def run_agent(
                 tools=tools,
                 skills=[SKILLS],
                 memory=[f"{SKILLS}/AGENTS.md"],
-                subagents=SUBAGENTS,
+                subagents=[{**spec, "middleware": [budget]} for spec in SUBAGENTS],
+                middleware=[budget],
                 system_prompt=SYSTEM_PROMPT,
                 name="famsun",
             )
             config = {
                 "configurable": {"thread_id": f"{user_id}/{session_id}"},
                 "callbacks": [trace],
-                "recursion_limit": getattr(settings, "graph_recursion_limit", 160),
+                "recursion_limit": step_limit,
             }
             previous = await load_state(agent, config)
             messages = interrupted_tool_results(previous.values.get("messages", []))
@@ -238,7 +243,12 @@ async def run_agent(
                 durability="sync",
             )
         last = result["messages"][-1]
-        if not isinstance(last, AIMessage) or last.tool_calls or not last.text.strip():
+        if (
+            not isinstance(last, AIMessage)
+            or last.tool_calls
+            or last.invalid_tool_calls
+            or not last.text.strip()
+        ):
             raise HarnessError("模型未返回最终答复，请检查模型的工具调用支持后重试")
         status = "completed"
         return last.text.strip()

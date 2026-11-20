@@ -75,10 +75,26 @@ class Workspace:
         return self.files[path][0]
 
 
-async def runner(*, prompt, sandbox, emit, **kwargs):
+async def runner(*, prompt, sandbox, emit, run_id, **kwargs):
     if prompt == "预览已归档的制粒机验收模型" and os.environ.get("FAMSUN_E2E_MODEL"):
         path = Path(os.environ["FAMSUN_E2E_MODEL"])
         sandbox.files["pellet.glb"] = (path.read_bytes(), "model/gltf-binary")
+        trace_path = path.with_name("trace.json")
+        if trace_path.is_file():
+            events = json.loads(trace_path.read_text(encoding="utf-8"))
+            original_run = next(
+                event["id"] for event in events if event["kind"] == "run"
+            )
+            for event in events:
+                if event["kind"] == "run":
+                    continue
+                record = {
+                    key: event.get(key)
+                    for key in ("id", "parent_id", "kind", "label", "detail", "status")
+                }
+                if record["parent_id"] == original_run:
+                    record["parent_id"] = run_id
+                await emit(record)
         return "[pellet.glb](pellet.glb)"
     nodes = [
         ("root", None, "agent", "工程智能体"),

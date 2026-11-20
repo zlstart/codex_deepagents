@@ -1,0 +1,36 @@
+{
+  "sqlite": {
+    "status": "pass",
+    "detail": "SQLite quick_check and write lock"
+  },
+  "docker": {
+    "status": "pass",
+    "detail": {
+      "engine": "29.9.2",
+      "sandbox_image_id": "sha256:6c3c3659aeff5c2a25eeb4ef185d33ce1aa63a661694552827d7d45d522641b8"
+    }
+  },
+  "resource_isolation": {
+    "status": "warning",
+    "detail": {
+      "driver": "none",
+      "memory": "false",
+      "cpu": "false",
+      "pids": "false"
+    }
+  },
+  "model": {
+    "status": "pass",
+    "detail": {
+      "model": "qwen3.8-flash",
+      "tool_round_trip": true
+    }
+  },
+  "langchain_mcp": {
+    "status": "pass",
+    "detail": [
+      "search_docs_by_lang_chain",
+      "query_docs_filesystem_docs_by_lang_chain"
+    ]
+  }
+}

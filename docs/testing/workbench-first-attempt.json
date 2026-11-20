@@ -1,0 +1,32 @@
+{
+  "id": "66d4667ce9884178a28fafc3a1a37d4d",
+  "status": "failed",
+  "created_at": "2026-11-20T11:32:17.073795+00:00",
+  "updated_at": "2026-11-20T11:47:21.978780+00:00",
+  "error": "任务超过执行时限，已停止",
+  "traceNodes": 73,
+  "toolFailures": [
+    "execute",
+    "execute",
+    "execute",
+    "edit_file",
+    "edit_file",
+    "edit_file"
+  ],
+  "packageInstallWarnings": 1,
+  "uiOutcome": "Chromium registered a disposable account and submitted the task. Its 900-second wait expired before status rendering.",
+  "observedArtifact": {
+    "path": "coupling.glb",
+    "bytes": 29108,
+    "verifiedBy": "docker exec ls in this session before timeout"
+  },
+  "toolFailureDetails": [
+    "execute: attempted import from missing trimesh.material",
+    "execute: stdlib JSON decoding failed while inspecting the GLB",
+    "execute: polygon mesh volume outside model-chosen tolerance (313432.7243 versus 313656.6105)",
+    "edit_file: tool input validation failed",
+    "edit_file: requested source string was absent",
+    "edit_file: another exact source replacement missed its target"
+  ],
+  "packageInstallWarning": "The initial deployment returned an unsuccessful CONNECT tunnel for manifold3d. The shell pipeline ended with tail, so its overall exit code was 0."
+}

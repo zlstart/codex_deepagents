@@ -100,7 +100,7 @@ export default function TraceTree({ run }: { run: Run }) {
     [retry, setRetry] = useState(0),
     [error, setError] = useState("");
   useEffect(() => {
-    if (!open) return;
+    if (!open && !running(run.status)) return;
     const c = new AbortController();
     let timer: ReturnType<typeof setTimeout>,
       cursor = 0;
@@ -154,6 +154,11 @@ export default function TraceTree({ run }: { run: Run }) {
       childrenOf.set(e.parent_id, children);
     }
   });
+  const current = running(run.status)
+    ? events
+        .filter((event) => event.kind !== "run" && running(event.status))
+        .at(-1)
+    : undefined;
   return (
     <section className="trace-tree">
       <button
@@ -163,6 +168,11 @@ export default function TraceTree({ run }: { run: Run }) {
       >
         <Activity size={16} />
         <span>执行过程</span>
+        {current && (
+          <span className="trace-current" title={current.label}>
+            {current.label}
+          </span>
+        )}
         <small className={"status-" + run.status}>
           <StatusIcon status={run.status} />
           {statusText[run.status]}

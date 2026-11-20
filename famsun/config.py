@@ -94,6 +94,9 @@ class Settings:
             os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY", "")
         ),
     )
+    llm_streaming: bool = field(
+        default_factory=lambda: flag("FAMSUN_LLM_STREAMING", True)
+    )
     llm_base_url: str = field(default_factory=model_base_url)
     llm_model: str = field(
         default_factory=lambda: os.getenv("LLM_MODEL") or os.getenv("OPENAI_MODEL", "")

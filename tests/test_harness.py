@@ -29,7 +29,21 @@ class ScriptedChat(BaseChatModel):
     def _generate(self, messages, stop=None, run_manager=None, **kwargs):
         human = next(m for m in reversed(messages) if isinstance(m, HumanMessage))
         last = messages[-1]
-        if isinstance(last, ToolMessage):
+        if human.content == "use time budget":
+            if "Runtime budget reminder" in str(messages[0].content):
+                reply = AIMessage(content="verified workspace listing")
+            else:
+                reply = AIMessage(
+                    content="",
+                    tool_calls=[
+                        {
+                            "name": "ls",
+                            "args": {"path": "/"},
+                            "id": str(uuid4()),
+                        }
+                    ],
+                )
+        elif isinstance(last, ToolMessage):
             reply = AIMessage(content="validated")
         elif human.content == "delegate both":
             assert "mechanical-assembly" in str(messages[0].content)
@@ -66,6 +80,7 @@ class ScriptedChat(BaseChatModel):
                         "name": "read_file",
                         "args": {"file_path": "/workspace/missing.txt"},
                     },
+                    {"id": str(uuid4()), "name": "unregistered_tool", "args": {}},
                 ],
             )
         elif human.content.endswith(" inspect"):
@@ -128,6 +143,7 @@ def test_nested_tools_skills_and_thread_isolation(tmp_path, monkeypatch):
 
     assert asyncio.run(run("alice", "thread", "delegate both")) == "validated"
     terminal = {e["id"]: e for e in events}
+    assert not any(e["kind"] == "notice" for e in terminal.values())
     delegates = {e["label"]: e for e in terminal.values() if e["kind"] == "subagent"}
     assert set(delegates) == {"engineering", "reviewer"}
     for role in delegates:
@@ -268,8 +284,8 @@ async def test_failed_file_tools_and_recovery(tmp_path, monkeypatch):
     assert answer == "validated"
     assert target.read_text() == "source text"
     terminal = {e["id"]: e for e in events}
-    failures = {e["label"] for e in terminal.values() if e["status"] == "failed"}
-    assert failures == {"read_file", "edit_file"}
+    failures = sorted(e["label"] for e in terminal.values() if e["status"] == "failed")
+    assert failures == ["edit_file", "read_file", "unregistered_tool"]
     # Legacy/adapted error strings can arrive in a default-success ToolMessage.
     adapted = ToolMessage(name="edit_file", content="Error: no match", tool_call_id="c")
     assert tool_result(adapted)[0] == "failed"
@@ -280,3 +296,64 @@ async def test_failed_file_tools_and_recovery(tmp_path, monkeypatch):
         artifact={"exit_code": 0},
     )
     assert tool_result(stdout)[0] == "completed"
+
+
+async def test_malformed_model_tool_arguments_are_visible():
+    from langchain_core.outputs import LLMResult
+
+    from famsun.trace import ActivityTrace
+
+    events = []
+
+    async def emit(event):
+        events.append(event)
+
+    trace = ActivityTrace("r", emit)
+    run_id = uuid4()
+    await trace.on_chat_model_start({}, [], run_id=run_id)
+    malformed = AIMessage(
+        content="",
+        invalid_tool_calls=[
+            {
+                "name": "execute",
+                "args": "{broken",
+                "id": "bad",
+                "error": "bad json",
+            }
+        ],
+    )
+    await trace.on_llm_end(
+        LLMResult(generations=[[ChatGeneration(message=malformed)]]), run_id=run_id
+    )
+    assert [
+        (e["label"], e["status"], e["parent_id"]) for e in events if e["kind"] == "tool"
+    ] == [("execute", "failed", str(run_id))]
+
+
+async def test_soft_budget_in_live_graph_before_hard_limit(tmp_path, monkeypatch):
+    monkeypatch.setattr(harness, "build_model", lambda settings: ScriptedChat())
+    events = []
+
+    async def emit(event):
+        events.append(event)
+
+    result = await harness.run_agent(
+        user_id="u",
+        session_id="s",
+        run_id="limited",
+        prompt="use time budget",
+        sandbox=FilesystemBackend(root_dir=tmp_path),
+        emit=emit,
+        settings=SimpleNamespace(
+            checkpoint_path=tmp_path / "budget.db",
+            mcp_enabled=False,
+            graph_recursion_limit=36,
+            run_timeout=60,
+        ),
+    )
+    assert result == "verified workspace listing"
+    assert any(e["label"] == "ls" and e["status"] == "completed" for e in events)
+    assert (
+        sum(e["kind"] == "notice" and e["label"] == "接近运行预算" for e in events) == 1
+    )
+    assert events[-1]["status"] == "completed"
