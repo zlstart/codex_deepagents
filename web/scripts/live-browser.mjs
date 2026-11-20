@@ -211,7 +211,19 @@ try {
   await subagent.waitFor();
   if ((await subagent.getAttribute("aria-expanded")) !== "true")
     await subagent.click();
-  await page.locator(".trace-summary").scrollIntoViewIfNeeded();
+  // Frame the separated parts for a desktop screenshot after verifying free orbit.
+  await page.getByRole("button", { name: "重置视角" }).click();
+  await canvas.hover();
+  await page.mouse.wheel(0, 1050);
+  await page.locator(".conversation-scroll").hover();
+  await page.mouse.wheel(0, -2500);
+  await page.locator(".trace-summary").waitFor();
+  await page.evaluate(
+    () =>
+      new Promise((done) =>
+        requestAnimationFrame(() => requestAnimationFrame(done)),
+      ),
+  );
   // Verify Chromium actually used a font with CJK glyphs for visible Chinese UI.
   const cdp = await page.context().newCDPSession(page);
   await cdp.send("DOM.enable");

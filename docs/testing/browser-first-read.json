@@ -1,0 +1,22 @@
+{
+  "environment": "Compose 8080, active pellet-mill task",
+  "result": "failed",
+  "checks": [
+    {
+      "step": "open workspace, expand live trace",
+      "result": "passed"
+    },
+    {
+      "step": "open files and select pellet.glb",
+      "result": "passed"
+    },
+    {
+      "step": "load model controls",
+      "result": "timed out after 60 s"
+    },
+    {
+      "step": "read file list in independent request",
+      "result": "timed out after 30 s"
+    }
+  ]
+}

@@ -1,10 +1,12 @@
 manifold3d
 mapbox-earcut
 matplotlib
+networkx
 numpy
 openpyxl
 pandas
 pillow
+rtree
 scipy
 shapely
 trimesh

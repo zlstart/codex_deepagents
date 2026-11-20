@@ -30,8 +30,27 @@ def recheck(directory, scenario):
             and hashlib.sha256(data).hexdigest() == signatures[name]["sha256"],
             f"artifact digest mismatch: {name}",
         )
+    followup = result.get("mode") == "same_session_followup"
+    checks = []
+    if followup:
+        require(
+            result["original_artifacts"] == result["artifacts"],
+            "follow-up rewrote the original files",
+        )
+        original_trace = json.loads((root / "original-trace.json").read_text())
+        checks.append(
+            audit_trace(
+                original_trace,
+                result["original_run_id"],
+                scenario.require_subagent,
+                terminal="failed",
+            )
+        )
     return [
-        audit_trace(trace, result["run_id"], scenario.require_subagent),
+        *checks,
+        audit_trace(
+            trace, result["run_id"], scenario.require_subagent and not followup
+        ),
         *VALIDATORS[scenario.key](root),
     ]
 

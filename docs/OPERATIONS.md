@@ -12,7 +12,7 @@ agent.example.org {
 }
 ```
 
-企业代理环境可设置 `FAMSUN_CA_FILE` 为受信任的公开根证书，再用 `docker compose -f compose.yaml -f deploy/corporate-ca.compose.yaml --profile build build sandbox-image app` 构建。按网络要求设置 `FAMSUN_EGRESS_UPSTREAM`，指向出口代理可以访问的企业 HTTP 代理。保持证书验证开启。
+企业代理环境可设置 `FAMSUN_CA_FILE` 为受信任的公开根证书，再用 `docker compose -f compose.yaml -f deploy/corporate-ca.compose.yaml --profile build build sandbox-image helper-image app` 构建。按网络要求设置 `FAMSUN_EGRESS_UPSTREAM`，指向出口代理可以访问的企业 HTTP 代理。保持证书验证开启。
 
 ## 容量与隔离
 

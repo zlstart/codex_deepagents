@@ -45,6 +45,43 @@ def test_cgroup_enforcement_is_required_by_default(monkeypatch):
         DockerSandbox("alice", "run").start()
 
 
+def test_timed_out_reader_removes_only_its_own_container(monkeypatch):
+    box = DockerSandbox("alice", "one", helper_image="test-reader:small")
+    issued, removed = [], []
+    monkeypatch.setattr(module, "_exists", lambda kind, resource: True)
+    monkeypatch.setattr(
+        module, "_remove", lambda kind, resource: removed.append((kind, resource))
+    )
+
+    def timeout(*args, **kwargs):
+        assert args[0] == "run" and "test-reader:small" in args
+        assert module.IMAGE not in args
+        assert args[args.index("--network") + 1] == "none"
+        assert args[args.index("--mount") + 1].endswith("dst=/workspace,readonly")
+        issued.append(args[args.index("--name") + 1])
+        raise module.DockerTimeout("simulated slow engine")
+
+    monkeypatch.setattr(module, "_docker", timeout)
+    for _ in range(2):
+        with pytest.raises(module.DockerTimeout):
+            box.list_artifacts()
+    assert issued[0] != issued[1]
+    assert removed == [("container", name) for name in issued]
+
+
+def test_reader_startup_error_does_not_report_file_missing(monkeypatch):
+    monkeypatch.setattr(module, "_exists", lambda kind, resource: True)
+    monkeypatch.setattr(
+        module,
+        "_docker",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            [], 2, b"", b"python cannot start the reader"
+        ),
+    )
+    with pytest.raises(RuntimeError, match="reader failed"):
+        DockerSandbox("alice", "one").read_artifact("model.glb")
+
+
 def test_distinct_ids_for_user_and_session():
     assert (
         len(
@@ -67,7 +104,16 @@ def docker_ready():
         if os.getenv("FAMSUN_REQUIRE_DOCKER_TESTS") == "true":
             pytest.fail("sandbox Docker image is required for this test run")
         pytest.skip("build deploy/sandbox.Dockerfile to run Docker integration tests")
-    return image
+    helper = os.getenv("FAMSUN_HELPER_IMAGE", module.HELPER_IMAGE)
+    if subprocess.run(
+        [cmd, "image", "inspect", helper], capture_output=True, check=False
+    ).returncode:
+        if os.getenv("FAMSUN_REQUIRE_DOCKER_TESTS") == "true":
+            pytest.fail(
+                "artifact helper image is required for Docker integration tests"
+            )
+        pytest.skip("build deploy/helper.Dockerfile to run Docker integration tests")
+    return image, helper
 
 
 def test_docker_lifecycle_isolation_and_reader(docker_ready):
@@ -77,7 +123,11 @@ def test_docker_lifecycle_isolation_and_reader(docker_ready):
         # CI validates cgroup policy separately. The managed rootless test daemon
         # does not delegate cgroups; exercise real container isolation there too.
         return DockerSandbox(
-            user + namespace, sid, image=docker_ready, allow_unenforced_cgroups=True
+            user + namespace,
+            sid,
+            image=docker_ready[0],
+            helper_image=docker_ready[1],
+            allow_unenforced_cgroups=True,
         )
 
     first = handle("a", "one")
@@ -104,6 +154,10 @@ def test_docker_lifecycle_isolation_and_reader(docker_ready):
 import trimesh
 from shapely.geometry import box
 solid = trimesh.creation.box(extents=[2, 2, 2])
+assert solid.contains([[0, 0, 0], [2, 2, 2]]).tolist() == [True, False]
+scene = trimesh.Scene()
+scene.add_geometry(solid, node_name="frame")
+assert scene.graph.to_networkx().has_edge("world", "frame")
 cut = solid.difference(trimesh.creation.box(), engine='manifold')
 assert cut.is_watertight and abs(cut.volume - 7) < 1e-6
 plate = trimesh.creation.extrude_polygon(box(0, 0, 2, 1), height=3, engine='earcut')

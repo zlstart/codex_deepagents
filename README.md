@@ -10,10 +10,10 @@
 
 1. 将模型配置注入运行 Compose 的 shell，或复制 `.env.example` 到仅管理员可读的 `.env`。填写 `LLM_BASE_URL`、`LLM_MODEL` 和 `LLM_API_KEY`。地址可以是 API 根路径，也可以包含末尾的 `/chat/completions` 或 `/responses`。配置 `DOCKER_GID` 为 Docker socket 在控制面容器内的组 ID，通常可通过 `stat -Lc %g /var/run/docker.sock` 获得。
 2. 设置 `FAMSUN_PUBLIC_ORIGIN` 为用户浏览器访问的 HTTPS 源，包括非默认端口。将 TLS 反向代理指向 `127.0.0.1:8000`。本仓库的 Compose 默认仅监听回环，启用 Secure Cookie，并关闭公开注册。
-3. 在仓库根目录构建两份镜像，启动服务，配置首个账号：
+3. 在仓库根目录构建服务端、沙箱和轻量文件读取/网络代理镜像，启动服务，配置首个账号：
 
 ```sh
-docker compose --profile build build sandbox-image app
+docker compose --profile build build sandbox-image helper-image app
 docker compose up -d --wait app
 docker compose exec app python -m famsun.manage create-user engineer
 docker compose exec app python -m famsun.doctor --strict --live-model
@@ -55,6 +55,7 @@ flowchart LR
 ```sh
 uv sync --locked --group eval
 (cd web && npm ci && npm run build)
+docker build -f deploy/helper.Dockerfile -t famsun-helper:local .
 docker build -f deploy/sandbox.Dockerfile -t famsun-sandbox:local .
 uv run --locked --group eval pytest -q
 FAMSUN_ALLOW_SIGNUP=true FAMSUN_SECURE_COOKIES=false \

@@ -139,14 +139,25 @@ export default function ModelViewer({ buffer }: { buffer: ArrayBuffer }) {
       camera.far = radius * 200;
       orbit.minDistance = radius * 0.1;
       orbit.maxDistance = radius * 24;
+      const isometric = new THREE.Vector3(1, 0.7, 1.25).normalize();
       const reset = () => {
-        orbit.target.copy(center);
+        model.updateMatrixWorld(true);
+        const current = new THREE.Box3()
+          .setFromObject(model)
+          .getBoundingSphere(new THREE.Sphere());
+        const halfVertical = THREE.MathUtils.degToRad(camera.fov / 2);
+        const halfNarrow = Math.atan(
+          Math.tan(halfVertical) * Math.min(1, camera.aspect),
+        );
+        const distance =
+          ((current.radius || radius) * 1.08) / Math.sin(halfNarrow);
+        orbit.target.copy(current.center);
+        orbit.maxDistance = Math.max(radius * 24, distance * 2);
+        camera.far = Math.max(radius * 200, distance * 4);
+        camera.updateProjectionMatrix();
         camera.position
-          .copy(center)
-          .addScaledVector(
-            new THREE.Vector3(1, 0.7, 1.25).normalize(),
-            radius * 3.5,
-          );
+          .copy(current.center)
+          .addScaledVector(isometric, distance);
         orbit.update();
         draw();
       };

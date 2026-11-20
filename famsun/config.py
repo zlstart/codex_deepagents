@@ -101,6 +101,9 @@ class Settings:
     llm_model: str = field(
         default_factory=lambda: os.getenv("LLM_MODEL") or os.getenv("OPENAI_MODEL", "")
     )
+    helper_image: str = field(
+        default_factory=lambda: os.getenv("FAMSUN_HELPER_IMAGE", "famsun-helper:local")
+    )
     sandbox_image: str = field(
         default_factory=lambda: os.getenv(
             "FAMSUN_SANDBOX_IMAGE", "famsun-sandbox:local"

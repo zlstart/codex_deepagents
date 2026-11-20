@@ -203,6 +203,19 @@ def test_trace_requires_actual_tool_within_subagent():
                     "status": status,
                 }
             )
+    events.insert(
+        2,
+        {
+            "id": "budget",
+            "parent_id": "r",
+            "kind": "notice",
+            "label": "quota",
+            "seq": 0,
+            "status": "completed",
+        },
+    )
+    for i, node in enumerate(events, 1):
+        node["seq"] = i
     assert audit_trace(events, "r", True)
     for node in events:
         if node["id"] == "t":
@@ -215,3 +228,86 @@ def test_trace_requires_actual_tool_within_subagent():
             "r",
             False,
         )
+
+
+@pytest.mark.asyncio
+async def test_reinspection_reads_terminal_run_without_submitting_again(tmp_path):
+    import httpx
+
+    from evals.live import run_case
+    from evals.scenarios import SCENARIOS
+
+    scenario = next(item for item in SCENARIOS if item.key == "downtime")
+    previous = {
+        "session_id": "session",
+        "run_id": "run",
+        "started": "2026-11-20",
+        "duration_seconds": 120,
+    }
+    old = {
+        "id": "run",
+        "status": "completed",
+        "prompt": scenario.prompt,
+        "answer": "检查完成。",
+    }
+    sources = {
+        "downtime.csv": (
+            "date,machine,reason,minutes\n2025-12-31,A,jam,15\n"
+            "2025-12-31,A,electrical,5\n2026-01-01,A,jam,25\n2026-01-01,A,electrical,5\n"
+            "2025-12-31,B,maintenance,10\n2026-01-01,B,maintenance,10\n2026-01-01,B,jam,10\n"
+        ),
+        "downtime.json": json.dumps(
+            {
+                "total_machine_minutes": 80,
+                "by_reason": {"jam": 50, "electrical": 10, "maintenance": 20},
+            }
+        ),
+    }
+    ids = [
+        ("run", "run", None, "run"),
+        ("m", "model", "run", "model"),
+        ("t", "tool", "run", "execute"),
+    ]
+    events = []
+    for nodes, status in [(ids, "running"), (reversed(ids), "completed")]:
+        events += [
+            {
+                "seq": len(events) + i + 1,
+                "id": id_,
+                "parent_id": parent,
+                "kind": kind,
+                "label": label,
+                "status": status,
+            }
+            for i, (id_, kind, parent, label) in enumerate(nodes)
+        ]
+
+    def endpoint(request):
+        assert request.method == "GET"
+        route = request.url.path.rsplit("/", 1)[-1]
+        if route == "run":
+            return httpx.Response(200, json=old)
+        if route == "runs":
+            return httpx.Response(200, json=[old])
+        if route == "events":
+            fresh = request.url.params["after"] == "0"
+            return httpx.Response(
+                200,
+                json={
+                    "events": events if fresh else [],
+                    "cursor": len(events),
+                    "status": "completed",
+                },
+            )
+        if route == "files":
+            return httpx.Response(200, json=[{"path": name} for name in sources])
+        return httpx.Response(200, text=sources[request.url.params["path"]])
+
+    async with httpx.AsyncClient(
+        base_url="https://qa.test", transport=httpx.MockTransport(endpoint)
+    ) as client:
+        result = await run_case(client, scenario, tmp_path, 15, previous)
+    assert result["passed"], result["errors"]
+    assert result["mode"] == "read_only_reinspection"
+    assert result["original_duration_seconds"] == 120
+    assert (tmp_path / scenario.key / "answer.txt").read_text() == old["answer"]

@@ -26,3 +26,11 @@ uv run --locked --group eval python -m evals.live \
 ```bash
 uv run --locked --group eval python -m evals.recheck var/evals/first-run
 ```
+
+若真实推理已正常结束而文件服务一度不可用，可在修复后用同一用户复查原始运行。该模式校验实际保存的用户需求与场景一致，重新读取原始事件、下载产物和生成输入，并写入新目录。报告分别记录原始执行和只读复验的耗时。
+
+```bash
+uv run --locked --group eval python -m evals.live \
+  --reinspect var/evals/first-run/three_body/result.json \
+  --base-url http://127.0.0.1:8000 --output var/evals/three-body-files-recheck
+```

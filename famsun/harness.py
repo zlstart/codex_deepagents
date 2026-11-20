@@ -20,6 +20,7 @@ from mcp.shared.exceptions import McpError
 from openai import APIConnectionError, APIStatusError
 
 from .budget import BudgetReminder
+from .memory import SessionMemory
 from .trace import ActivityTrace, Emit
 
 SKILLS = "/opt/famsun/skills"
@@ -30,6 +31,8 @@ WORKSPACE_RULES = (
     "/workspace/... paths for generated files and the file tools. Packages installed with "
     "uv pip install are available to Python in this sandbox. Keep final artifacts in "
     "/workspace, named clearly. Verify each output with a tool before announcing it. "
+    "The sandbox image under /opt/famsun is read-only. Persist only explicitly requested "
+    "lasting preferences in /workspace/.famsun/AGENTS.md. "
     "The user's requested output names, numerical parameters, interval, and acceptance criteria "
     "take precedence over skill examples. Once the requested outputs pass the checks, finish "
     "the turn with the results. Repeat a check or modify an artifact only to address a concrete "
@@ -214,6 +217,7 @@ async def run_agent(
         backend = CompositeBackend(
             default=sandbox, routes={}, artifacts_root="/workspace/.famsun"
         )
+        memory = SessionMemory(backend)
         async with aiosqlite.connect(checkpoint_path) as conn:
             saver = AsyncSqliteSaver(
                 conn, serde=JsonPlusSerializer(allowed_msgpack_modules=None)
@@ -224,9 +228,10 @@ async def run_agent(
                 checkpointer=saver,
                 tools=tools,
                 skills=[SKILLS],
-                memory=[f"{SKILLS}/AGENTS.md"],
-                subagents=[{**spec, "middleware": [budget]} for spec in SUBAGENTS],
-                middleware=[budget],
+                subagents=[
+                    {**spec, "middleware": [budget, memory]} for spec in SUBAGENTS
+                ],
+                middleware=[budget, memory],
                 system_prompt=SYSTEM_PROMPT,
                 name="famsun",
             )

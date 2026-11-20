@@ -57,7 +57,10 @@ test("account, starters, history, three-level traces, safe artifact preview, int
   await slider.focus();
   await slider.press("End");
   await expect(page.getByText("100%", { exact: true })).toBeVisible();
+  const canvas = page.locator(".model-stage canvas");
+  const beforeFit = await canvas.screenshot();
   await page.getByRole("button", { name: "重置视角" }).click();
+  expect(beforeFit.equals(await canvas.screenshot())).toBe(false);
   const download = page.waitForEvent("download");
   await page.getByRole("link", { name: "下载文件" }).click();
   expect((await download).suggestedFilename()).toBe("assembly.glb");

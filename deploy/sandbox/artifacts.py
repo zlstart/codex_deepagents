@@ -90,8 +90,8 @@ if __name__ == "__main__":
         else:
             read_file(sys.argv[2])
     except FileNotFoundError:
-        sys.exit(2)
+        sys.exit(42)
     except OverflowError:
-        sys.exit(3)
+        sys.exit(43)
     except (OSError, ValueError, RecursionError):
-        sys.exit(4)
+        sys.exit(44)

@@ -1,5 +1,11 @@
 name: famsun
 services:
+  helper-image:
+    profiles: ["build"]
+    image: ${FAMSUN_HELPER_IMAGE:-famsun-helper:local}
+    build:
+      context: .
+      dockerfile: deploy/helper.Dockerfile
   sandbox-image:
     profiles: ["build"]
     image: ${FAMSUN_SANDBOX_IMAGE:-famsun-sandbox:local}
@@ -37,6 +43,7 @@ services:
       FAMSUN_SECURE_COOKIES: ${FAMSUN_SECURE_COOKIES:-true}
       FAMSUN_LLM_STREAMING: ${FAMSUN_LLM_STREAMING:-true}
       FAMSUN_MCP_ENABLED: ${FAMSUN_MCP_ENABLED:-true}
+      FAMSUN_HELPER_IMAGE: ${FAMSUN_HELPER_IMAGE:-famsun-helper:local}
       FAMSUN_SANDBOX_IMAGE: ${FAMSUN_SANDBOX_IMAGE:-famsun-sandbox:local}
       FAMSUN_ALLOW_UNENFORCED_CGROUPS: ${FAMSUN_ALLOW_UNENFORCED_CGROUPS:-false}
       FAMSUN_EGRESS_UPSTREAM: ${FAMSUN_EGRESS_UPSTREAM:-}

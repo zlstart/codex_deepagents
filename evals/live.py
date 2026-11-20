@@ -8,6 +8,7 @@ import json
 import os
 import re
 import secrets
+import tempfile
 import time
 import zipfile
 from collections import Counter
@@ -36,7 +37,7 @@ def save_json(path, data):
     temp.replace(path)
 
 
-def audit_trace(events, rid, require_subagent):
+def audit_trace(events, rid, require_subagent, terminal="completed"):
     require(
         events and all(a["seq"] < b["seq"] for a, b in itertools.pairwise(events)),
         "event cursor did not advance monotonically",
@@ -58,8 +59,12 @@ def audit_trace(events, rid, require_subagent):
                 f"node identity changed during run: {key}",
             )
         else:
+            instantaneous_notice = (
+                node["kind"] == "notice" and node["status"] == "completed"
+            )
             require(
-                node["status"] in ("running", "queued"), f"missing initial event: {key}"
+                instantaneous_notice or node["status"] in ("running", "queued"),
+                f"missing initial event: {key}",
             )
             parent = node.get("parent_id")
             require(
@@ -69,8 +74,8 @@ def audit_trace(events, rid, require_subagent):
             )
         latest[key] = node
     require(
-        rid in latest and latest[rid]["status"] == "completed",
-        "missing completed run event",
+        rid in latest and latest[rid]["status"] == terminal,
+        "missing expected terminal run event",
     )
     require(
         any(
@@ -111,11 +116,12 @@ def audit_trace(events, rid, require_subagent):
     return f"{len(events)} 条生命周期事件，{len(latest)} 个节点，最大深度 {depth} 层"
 
 
-def source_names(files):
+def source_names(files, outputs=()):
     return sorted(
         name
         for name in files
-        if re.fullmatch(r"[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,100}\.(py|scad)", name)
+        if name not in outputs
+        and re.fullmatch(r"[a-zA-Z0-9_][a-zA-Z0-9_.-]{0,100}\.(py|scad|json)", name)
     )[:8]
 
 
@@ -167,7 +173,63 @@ async def request(client, method, path, **kwargs):
     return response.json()
 
 
-async def run_case(client, scenario, output, timeout):
+async def start_followup(client, scenario, session_url, prior, root, report):
+    require(
+        prior["status"] == "failed", "follow-up recovery requires a failed original run"
+    )
+    cursor = 0
+    original_events = []
+    while True:
+        page = await request(
+            client,
+            "GET",
+            f"{session_url}/runs/{prior['id']}/events",
+            params={"after": cursor},
+        )
+        original_events.extend(page["events"])
+        if not page.get("has_more"):
+            break
+        cursor = page["cursor"]
+    topology = audit_trace(
+        original_events,
+        prior["id"],
+        scenario.require_subagent,
+        terminal=prior["status"],
+    )
+    original_trace = [
+        {
+            k: e.get(k)
+            for k in ("seq", "id", "parent_id", "kind", "label", "status", "created_at")
+        }
+        for e in original_events
+    ]
+    save_json(root / "original-trace.json", original_trace)
+    with tempfile.TemporaryDirectory() as tmp:
+        verified = Path(tmp)
+        originals = [
+            await download(client, session_url + "/file", name, verified)
+            for name in scenario.outputs
+        ]
+        checks = await asyncio.to_thread(VALIDATORS[scenario.key], verified)
+    report.update(
+        mode="same_session_followup",
+        original_run_id=prior["id"],
+        original_status=prior["status"],
+        original_checks=[topology, *checks],
+        original_artifacts=originals,
+    )
+    prompt = (
+        "请基于本会话刚才生成并验证的产物给出简短结论。用一次沙箱命令检查这些交付文件存在且非空："
+        + "、".join(scenario.outputs)
+        + "。保留原文件，直接汇报已有的验证结果和未完成项。"
+    )
+    report["followup_prompt"] = prompt
+    return (
+        await request(client, "POST", session_url + "/runs", json={"prompt": prompt})
+    )["id"]
+
+
+async def run_case(client, scenario, output, timeout, previous=None, *, followup=False):
     root = output / scenario.key
     root.mkdir()
     report = {
@@ -184,16 +246,36 @@ async def run_case(client, scenario, output, timeout):
     run_url = None
     started = time.monotonic()
     try:
-        session = await request(
-            client, "POST", "/api/sessions", json={"title": f"验收 · {scenario.title}"}
-        )
-        sid = session["id"]
+        if previous:
+            sid, rid = previous["session_id"], previous["run_id"]
+            session_url = f"/api/sessions/{sid}"
+            prior = await request(client, "GET", f"{session_url}/runs/{rid}")
+            require(
+                prior["prompt"] == scenario.prompt and prior["status"] in TERMINAL,
+                "reinspection requires the same original prompt and a terminal run",
+            )
+            if followup:
+                rid = await start_followup(
+                    client, scenario, session_url, prior, root, report
+                )
+            else:
+                report["mode"] = "read_only_reinspection"
+            report["original_started"] = previous["started"]
+            report["original_duration_seconds"] = previous["duration_seconds"]
+        else:
+            session = await request(
+                client,
+                "POST",
+                "/api/sessions",
+                json={"title": f"验收 · {scenario.title}"},
+            )
+            sid = session["id"]
+            session_url = f"/api/sessions/{sid}"
+            run = await request(
+                client, "POST", f"{session_url}/runs", json={"prompt": scenario.prompt}
+            )
+            rid = run["id"]
         report["session_id"] = sid
-        session_url = f"/api/sessions/{sid}"
-        run = await request(
-            client, "POST", f"{session_url}/runs", json={"prompt": scenario.prompt}
-        )
-        rid = run["id"]
         report["run_id"] = rid
         run_url = f"{session_url}/runs/{rid}"
         print(f"[{scenario.key}] run {rid}", flush=True)
@@ -223,6 +305,9 @@ async def run_case(client, scenario, output, timeout):
             if r["id"] == rid
         )
         report["agent_error"] = final.get("error")
+        if answer := final.get("answer"):
+            (root / "answer.txt").write_text(answer, encoding="utf-8")
+            report["answer_file"] = "answer.txt"
         if final["status"] != "completed" or not final.get("answer"):
             report["errors"].append(
                 f"agent ended {final['status']}: {final.get('error')}"
@@ -230,7 +315,7 @@ async def run_case(client, scenario, output, timeout):
         else:
             try:
                 report["checks"].append(
-                    audit_trace(events, rid, scenario.require_subagent)
+                    audit_trace(events, rid, scenario.require_subagent and not followup)
                 )
             except (ValueError, KeyError) as exc:
                 report["errors"].append(f"trace: {exc}")
@@ -246,7 +331,7 @@ async def run_case(client, scenario, output, timeout):
             except (ValueError, httpx.HTTPError) as exc:
                 report["errors"].append(f"download: {exc}")
         sources = {}
-        for name in source_names(names):
+        for name in source_names(names, scenario.outputs):
             try:
                 sources[name] = await fetch_file(
                     client, session_url + "/file", name, 512 * 1024
@@ -259,11 +344,20 @@ async def run_case(client, scenario, output, timeout):
             report["checks"].extend(
                 await asyncio.to_thread(VALIDATORS[scenario.key], root)
             )
+        if followup:
+            require(
+                report["artifacts"] == report["original_artifacts"],
+                "follow-up changed the requested artifacts",
+            )
         report["passed"] = not report["errors"]
     except Exception as exc:  # noqa: BLE001 - record per-case failures without losing sibling results
         report["errors"].append(f"{type(exc).__name__}: {str(exc)[:1400]}")
     finally:
-        if run_url and report["agent_status"] not in TERMINAL:
+        if (
+            (not previous or followup)
+            and run_url
+            and report["agent_status"] not in TERMINAL
+        ):
             try:
                 await request(client, "POST", run_url + "/cancel")
             except Exception as exc:  # noqa: BLE001 - record per-case failures without losing sibling results
@@ -331,18 +425,31 @@ def write_report(output, results):
                 "",
             ]
         )
+        if r.get("mode") == "same_session_followup":
+            lines.append(
+                f"- 同一会话的后续请求。原运行 `{r['original_run_id']}` 终态为 {r['original_status']}，本次另计为恢复验收。"
+            )
+            lines.append(f"- [原始执行树]({r['scenario']}/original-trace.json)")
+        if r.get("mode") == "read_only_reinspection":
+            lines.append(
+                f"- 只读复验同一已结束的运行。原验收耗时 {r['original_duration_seconds']} 秒，此处耗时为复验所需时间。"
+            )
         lines.extend(f"- {check}" for check in r["checks"])
         lines.extend(f"- 验收失败：{err}" for err in r["errors"])
         if r.get("postmortem_collection"):
-            lines.append("- 此次运行已失败。结束后使用只读产物服务复查了该测试会话的工作卷。")
+            lines.append(
+                "- 此次运行已失败。结束后使用只读产物服务复查了该测试会话的工作卷。"
+            )
             lines.extend("- 失败后复算：" + c for c in r.get("postmortem_checks", []))
         lines.extend(
             f"- 运行中失败步骤：{e['kind']} / {e['label']}（序号 {e['seq']}，详见轨迹）"
             for e in r["failed_steps"]
         )
+        if r.get("answer_file"):
+            lines.append(f"- [智能体最终答复]({r['scenario']}/answer.txt)")
         if sources := r.get("sources"):
             lines.append(
-                f"- [生成代码]({r['scenario']}/{sources['name']}) · "
+                f"- [生成脚本和输入]({r['scenario']}/{sources['name']}) · "
                 + "、".join(sources["files"])
             )
         lines.extend(
@@ -356,9 +463,13 @@ async def main(args):
     output = args.output
     # Keep each execution immutable, including partial failures and previous runs.
     output.mkdir(parents=True, exist_ok=False)
+    prior_path = args.reinspect or args.followup
+    previous = json.loads(prior_path.read_text()) if prior_path else None
+    requested = [previous["scenario"]] if previous else args.case
     selected = [
-        scenario for scenario in SCENARIOS if not args.case or scenario.key in args.case
+        scenario for scenario in SCENARIOS if not requested or scenario.key in requested
     ]
+    require(selected, "no matching scenario")
     async with httpx.AsyncClient(
         base_url=args.base_url, timeout=60, trust_env=False
     ) as client:
@@ -371,7 +482,7 @@ async def main(args):
                 "/api/auth/login",
                 json={"username": name, "password": password},
             )
-        elif name or password:
+        elif name or password or previous:
             raise ValueError("set both FAMSUN_EVAL_USERNAME and FAMSUN_EVAL_PASSWORD")
         else:
             await request(
@@ -387,9 +498,19 @@ async def main(args):
 
         async def limited(scenario):
             async with sem:
-                return await run_case(client, scenario, output, args.timeout)
+                return await run_case(
+                    client,
+                    scenario,
+                    output,
+                    args.timeout,
+                    previous,
+                    followup=bool(args.followup),
+                )
 
-        results = await asyncio.gather(*(limited(case) for case in selected))
+        try:
+            results = await asyncio.gather(*(limited(case) for case in selected))
+        finally:
+            await client.post("/api/auth/logout")
     write_report(output, results)
     return 0 if all(r["passed"] for r in results) else 1
 
@@ -402,5 +523,16 @@ if __name__ == "__main__":
     )
     parser.add_argument("--timeout", type=int, default=1200)
     parser.add_argument("--parallel", type=int, choices=range(1, 9), default=2)
-    parser.add_argument("--case", choices=[s.key for s in SCENARIOS], action="append")
+    scope = parser.add_mutually_exclusive_group()
+    scope.add_argument(
+        "--reinspect",
+        type=Path,
+        help="read-only replay of an earlier result.json under the same user",
+    )
+    scope.add_argument(
+        "--followup",
+        type=Path,
+        help="validate existing files and request a final summary in the failed original session",
+    )
+    scope.add_argument("--case", choices=[s.key for s in SCENARIOS], action="append")
     raise SystemExit(asyncio.run(main(parser.parse_args())))

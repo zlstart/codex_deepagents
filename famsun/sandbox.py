@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 import threading
 import time
+from uuid import uuid4
 
 from deepagents.backends.protocol import (
     ExecuteResponse,
@@ -20,6 +21,8 @@ from deepagents.backends.protocol import (
 from deepagents.backends.sandbox import BaseSandbox
 
 IMAGE = "famsun-sandbox:local"
+HELPER_IMAGE = "famsun-helper:local"
+CREATE_TIMEOUT = 150
 LABEL = "io.famsun.sandbox=v1"
 MAX_FILE = 32 * 1024 * 1024
 MAX_OUTPUT = 1024 * 1024
@@ -68,12 +71,18 @@ class ArtifactTooLarge(ValueError):
     """The file or listing exceeds the transport budget."""
 
 
+class DockerTimeout(RuntimeError):
+    """The daemon did not finish the requested control operation in time."""
+
+
 def _docker(*args, check=True, timeout=30):
     try:
         result = subprocess.run(
             ["docker", *args], capture_output=True, timeout=timeout, check=False
         )
-    except (OSError, subprocess.TimeoutExpired) as error:
+    except subprocess.TimeoutExpired as error:
+        raise DockerTimeout(f"Docker {args[0]} exceeded {timeout} seconds") from error
+    except OSError as error:
         raise RuntimeError("Docker control plane unavailable") from error
     if check and result.returncode:
         reason = result.stderr.decode(errors="replace").strip()[:1024]
@@ -183,6 +192,7 @@ class DockerSandbox(BaseSandbox):
         session_id: str,
         *,
         image: str = IMAGE,
+        helper_image: str = HELPER_IMAGE,
         timeout: int = 120,
         allow_unenforced_cgroups: bool = False,
         volume_driver: str = "local",
@@ -194,6 +204,7 @@ class DockerSandbox(BaseSandbox):
         self._name = "famsun-" + digest
         self._lock = _LOCKS[int(digest[:2], 16) % len(_LOCKS)]
         self.image = image
+        self.helper_image = helper_image
         self.allow_unenforced_cgroups = allow_unenforced_cgroups
         self.volume_driver = volume_driver
         self.volume_options = dict(volume_options or {})
@@ -219,7 +230,7 @@ class DockerSandbox(BaseSandbox):
         return self.id + "-proxy"
 
     def available(self):
-        return _exists("image", self.image)
+        return _exists("image", self.image) and _exists("image", self.helper_image)
 
     def start(self):
         with self._lock:
@@ -291,10 +302,11 @@ class DockerSandbox(BaseSandbox):
                     "egress",
                     "--env",
                     "FAMSUN_EGRESS_UPSTREAM",
-                    self.image,
+                    self.helper_image,
                     "/usr/local/bin/python",
                     "-I",
                     "/opt/famsun/proxy.py",
+                    timeout=CREATE_TIMEOUT,
                 )
                 _docker("network", "connect", "bridge", self._proxy)
                 _docker("start", self._proxy)
@@ -324,6 +336,7 @@ class DockerSandbox(BaseSandbox):
                     f"type=volume,src={self.id}-home,dst=/home/worker",
                     *_PROXY_ENV,
                     self.image,
+                    timeout=CREATE_TIMEOUT,
                 )
                 # Tool calls queued for a cancelled run must never attach to a
                 # subsequent run that happens to reuse the session's container name.
@@ -457,34 +470,44 @@ class DockerSandbox(BaseSandbox):
             raise FileNotFoundError
         # Separate namespaces, immutable interpreter and no network. Even a
         # running agent cannot modify the reader or see its file descriptors.
-        result = _docker(
-            "run",
-            "--rm",
-            "--network",
-            "none",
-            "--label",
-            LABEL,
-            *_POLICY,
-            "--memory",
-            "192m",
-            "--cpus",
-            "0.5",
-            "--pids-limit",
-            "16",
-            "--mount",
-            f"type=volume,src={self._volume},dst=/workspace,readonly",
-            self.image,
-            "/usr/local/bin/python",
-            "-I",
-            "/opt/famsun/artifacts.py",
-            *args,
-            check=False,
-        )
-        if result.returncode == 2:
+        reader = f"{self.id}-reader-{uuid4().hex}"
+        try:
+            result = _docker(
+                "run",
+                "--rm",
+                "--name",
+                reader,
+                "--network",
+                "none",
+                "--label",
+                LABEL,
+                *_POLICY,
+                "--memory",
+                "192m",
+                "--cpus",
+                "0.5",
+                "--pids-limit",
+                "16",
+                "--mount",
+                f"type=volume,src={self._volume},dst=/workspace,readonly",
+                self.helper_image,
+                "/usr/local/bin/python",
+                "-I",
+                "/opt/famsun/artifacts.py",
+                *args,
+                check=False,
+                timeout=60,
+            )
+        except DockerTimeout:
+            # Docker CLI cancellation can leave a container in Created state on
+            # slow storage. Address this request's exact name, never its volume.
+            _remove("container", reader)
+            raise
+        if result.returncode == 42:
             raise FileNotFoundError
-        if result.returncode == 3:
+        if result.returncode == 43:
             raise ArtifactTooLarge("workspace artifact limit exceeded")
-        if result.returncode == 4:
+        if result.returncode == 44:
             raise ValueError("invalid artifact")
         if result.returncode:
             raise RuntimeError("Docker artifact reader failed")
@@ -502,6 +525,7 @@ def create_sandbox(*, user_id, session_id, settings):
         user_id,
         session_id,
         image=settings.sandbox_image,
+        helper_image=settings.helper_image,
         timeout=settings.sandbox_timeout,
         allow_unenforced_cgroups=settings.allow_unenforced_cgroups,
         volume_driver=settings.volume_driver,

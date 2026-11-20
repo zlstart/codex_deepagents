@@ -13,6 +13,7 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 
 from famsun import harness
+from famsun.memory import POLICY, PREFERENCES, SEED
 from famsun.trace import excerpt, tool_result
 
 
@@ -45,6 +46,33 @@ class ScriptedChat(BaseChatModel):
                 )
         elif isinstance(last, ToolMessage):
             reply = AIMessage(content="validated")
+        elif human.content == "save my unit preference":
+            system = messages[0].text
+            assert POLICY in system and PREFERENCES in system
+            assert "read-only sandbox image" in system
+            reply = AIMessage(
+                content="",
+                tool_calls=[
+                    {
+                        "id": str(uuid4()),
+                        "name": "edit_file",
+                        "args": {
+                            "file_path": PREFERENCES,
+                            "old_string": SEED.rstrip(),
+                            "new_string": SEED.rstrip()
+                            + "\nPreferred unit: micrometres.",
+                        },
+                    }
+                ],
+            )
+        elif human.content == "read preferences from system":
+            reply = AIMessage(
+                content=(
+                    "micrometres"
+                    if "Preferred unit: micrometres." in messages[0].text
+                    else "default"
+                )
+            )
         elif human.content == "delegate both":
             assert "mechanical-assembly" in str(messages[0].content)
             assert "FAMSUN engineering conventions" in str(messages[0].content)
@@ -357,3 +385,41 @@ async def test_soft_budget_in_live_graph_before_hard_limit(tmp_path, monkeypatch
         sum(e["kind"] == "notice" and e["label"] == "接近运行预算" for e in events) == 1
     )
     assert events[-1]["status"] == "completed"
+
+
+async def test_writable_memory_reloads_after_checkpoint_and_is_private(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(harness, "build_model", lambda settings: ScriptedChat())
+    settings = SimpleNamespace(
+        checkpoint_path=tmp_path / "memory.db", mcp_enabled=False
+    )
+    events = []
+
+    async def emit(event):
+        events.append(event)
+
+    async def turn(owner, session, prompt):
+        directory = tmp_path / owner / session
+        if not directory.exists():
+            target = directory / POLICY.lstrip("/")
+            target.parent.mkdir(parents=True)
+            target.write_text("Read-only engineering policy")
+        return await harness.run_agent(
+            user_id=owner,
+            session_id=session,
+            run_id=str(uuid4()),
+            prompt=prompt,
+            sandbox=FilesystemBackend(root_dir=directory),
+            emit=emit,
+            settings=settings,
+        )
+
+    assert await turn("one", "thread", "save my unit preference") == "validated"
+    assert any(e["label"] == "edit_file" and e["status"] == "completed" for e in events)
+    root = tmp_path / "one/thread"
+    assert "micrometres" in (root / PREFERENCES.lstrip("/")).read_text()
+    assert (root / POLICY.lstrip("/")).read_text() == "Read-only engineering policy"
+    assert await turn("one", "thread", "read preferences from system") == "micrometres"
+    assert await turn("one", "other", "read preferences from system") == "default"
+    assert await turn("two", "thread", "read preferences from system") == "default"

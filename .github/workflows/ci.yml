@@ -19,6 +19,7 @@ jobs:
       - run: uv sync --locked --group eval
       - run: npm ci && npm run build
         working-directory: web
+      - run: docker build -f deploy/helper.Dockerfile -t famsun-helper:local .
       - run: docker build -f deploy/sandbox.Dockerfile -t famsun-sandbox:local .
       - run: uv run --locked --group eval pytest -q
         env:
