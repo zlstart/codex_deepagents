@@ -1,0 +1,11 @@
+# Optional site trust for HTTPS behind an enterprise proxy.
+services:
+  sandbox-image:
+    build:
+      secrets: [corporate_ca]
+  app:
+    build:
+      secrets: [corporate_ca]
+secrets:
+  corporate_ca:
+    file: ${FAMSUN_CA_FILE:?path to the public CA certificate}

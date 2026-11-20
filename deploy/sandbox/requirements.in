@@ -1,0 +1,10 @@
+manifold3d
+mapbox-earcut
+matplotlib
+numpy
+openpyxl
+pandas
+pillow
+scipy
+shapely
+trimesh

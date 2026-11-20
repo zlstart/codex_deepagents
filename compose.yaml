@@ -1,0 +1,49 @@
+name: famsun
+services:
+  sandbox-image:
+    profiles: ["build"]
+    image: ${FAMSUN_SANDBOX_IMAGE:-famsun-sandbox:local}
+    build:
+      context: .
+      dockerfile: deploy/sandbox.Dockerfile
+  app:
+    image: famsun-agent:local
+    build:
+      context: .
+      dockerfile: deploy/service.Dockerfile
+    restart: unless-stopped
+    init: true
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    ports:
+      - "${FAMSUN_BIND:-127.0.0.1}:${FAMSUN_PORT:-8000}:8000"
+    group_add:
+      - "${DOCKER_GID:?set DOCKER_GID to the socket group as seen by containers}"
+    volumes:
+      - famsun-data:/app/var
+      - type: bind
+        source: ${FAMSUN_DOCKER_SOCKET:-/var/run/docker.sock}
+        target: /var/run/docker.sock
+        read_only: true
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,size=128m
+    environment:
+      LLM_BASE_URL: ${LLM_BASE_URL:?set compatible model base URL}
+      LLM_MODEL: ${LLM_MODEL:?set tool-capable model name}
+      LLM_API_KEY: ${LLM_API_KEY:?set model API key in the service environment}
+      FAMSUN_ALLOW_SIGNUP: ${FAMSUN_ALLOW_SIGNUP:-false}
+      FAMSUN_PUBLIC_ORIGIN: ${FAMSUN_PUBLIC_ORIGIN:-}
+      FAMSUN_SECURE_COOKIES: ${FAMSUN_SECURE_COOKIES:-true}
+      FAMSUN_MCP_ENABLED: ${FAMSUN_MCP_ENABLED:-true}
+      FAMSUN_SANDBOX_IMAGE: ${FAMSUN_SANDBOX_IMAGE:-famsun-sandbox:local}
+      FAMSUN_ALLOW_UNENFORCED_CGROUPS: ${FAMSUN_ALLOW_UNENFORCED_CGROUPS:-false}
+      FAMSUN_EGRESS_UPSTREAM: ${FAMSUN_EGRESS_UPSTREAM:-}
+      FAMSUN_VOLUME_DRIVER: ${FAMSUN_VOLUME_DRIVER:-local}
+      FAMSUN_VOLUME_OPTIONS: ${FAMSUN_VOLUME_OPTIONS:-}
+      FAMSUN_GRAPH_RECURSION_LIMIT: ${FAMSUN_GRAPH_RECURSION_LIMIT:-160}
+      FAMSUN_RUN_TIMEOUT: ${FAMSUN_RUN_TIMEOUT:-900}
+      FAMSUN_SANDBOX_TIMEOUT: ${FAMSUN_SANDBOX_TIMEOUT:-120}
+      FAMSUN_MAX_PARALLEL_RUNS: ${FAMSUN_MAX_PARALLEL_RUNS:-4}
+volumes:
+  famsun-data:
