@@ -1,0 +1,32 @@
+{
+  "ac_rms": 0.6189103327623477,
+  "top_hz": [
+    48.25,
+    119.5,
+    239.0
+  ],
+  "sample_count": 4096,
+  "sample_rate_hz": 1024.0,
+  "unit": "m/s^2",
+  "window": "rectangular",
+  "mean_removed": true,
+  "normalization": "single-sided amplitude: A[k]=2|X[k]|/N (0<k<N/2); A[0], A[N/2] = |X|/N",
+  "spectrum_bins": 2049,
+  "frequency_resolution_hz": 0.25,
+  "peaks_hz_amplitude": [
+    {
+      "frequency_hz": 48.25,
+      "amplitude": 0.8
+    },
+    {
+      "frequency_hz": 119.5,
+      "amplitude": 0.35
+    },
+    {
+      "frequency_hz": 239.0,
+      "amplitude": 0.06000000000000011
+    }
+  ],
+  "mean_removed_value_m_s_2": 0.12000000000000002,
+  "off_peak_floor_amplitude_m_s_2": 1.6823761665046844e-14
+}

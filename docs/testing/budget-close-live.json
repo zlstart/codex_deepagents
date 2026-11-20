@@ -1,0 +1,33 @@
+{
+  "started": "2026-11-20T12:17:13.962742+00:00",
+  "duration_seconds": 19.64574,
+  "conditions": "独立真实 Docker、已配置模型及 SQLite 新会话。测试注入已消耗的时间预算，使首轮直接进入收尾。",
+  "prompt": "请创建 /workspace/pressure.csv 并核验，尚无输入数据或现存文件。",
+  "final_status": "failed",
+  "public_error": "运行预算已触发收尾，任务未通过完整验收。",
+  "answer": "- 没有已完成工具调用可支持任何结果。\n- 未创建 `/workspace/pressure.csv`；该文件存在性与内容均未核验。\n- 未执行读取或验证，因此无 checked outcome。\n- 用户要求未完成：创建并核验 CSV。\n- 缺失输入规格：列名、单位、行数、时间间隔或压力数据。\n- 如需继续：请提供 CSV 结构，或允许先创建仅含表头的空文件。",
+  "nodes": [
+    {
+      "kind": "agent",
+      "label": "FAMSUN Agent",
+      "status": "failed"
+    },
+    {
+      "kind": "notice",
+      "label": "预算收尾",
+      "status": "completed"
+    },
+    {
+      "kind": "model",
+      "label": "模型响应",
+      "status": "completed"
+    }
+  ],
+  "artifacts": [],
+  "checks": [
+    "单轮真实模型请求",
+    "收尾未调用工具",
+    "无生成文件",
+    "失败状态保留有限答复"
+  ]
+}

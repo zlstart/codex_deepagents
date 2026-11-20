@@ -1,0 +1,3 @@
+# Preserve the checksum of files downloaded from the agent workspace.
+evals/results/** -text
+evals/results/**/*.csv -text whitespace=cr-at-eol

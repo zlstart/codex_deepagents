@@ -1,0 +1,65 @@
+{
+  "title": "跨日停机去重与归因",
+  "scenario": "downtime",
+  "started": "2026-11-20T11:34:32+00:00",
+  "passed": true,
+  "agent_status": "completed",
+  "artifacts": [
+    {
+      "name": "downtime.csv",
+      "bytes": 204,
+      "sha256": "0907eaf48808142995c0d502c8784bc6dad34a623bb4b5a1c74dedd966aac84c"
+    },
+    {
+      "name": "downtime.json",
+      "bytes": 115,
+      "sha256": "0fb07c1f847bf7d012d0949efaf2b9d86a6231198f78d44b6f13fd78b9b72302"
+    }
+  ],
+  "checks": [
+    "67 条生命周期事件，33 个节点，最大深度 3 层",
+    "跨日切分后得到七组归因记录，重复区间已消除，设备累计停机 80 分钟"
+  ],
+  "errors": [],
+  "session_id": "43123c7689b141caa92a92646a2cd304",
+  "run_id": "b9b09292b4da4b55b79a1d6f1ef81e4f",
+  "agent_error": null,
+  "listed_files": [
+    "downtime.csv",
+    "downtime.json",
+    "downtime_input.csv",
+    "downtime_report.py",
+    "verify_downtime.py"
+  ],
+  "node_counts": {
+    "run": 1,
+    "agent": 1,
+    "tool": 17,
+    "model": 14
+  },
+  "failed_steps": [
+    {
+      "seq": 243,
+      "id": "01a1f8be-107c-7778-b840-3418ac0176fe",
+      "parent_id": "b9b09292b4da4b55b79a1d6f1ef81e4f/agent",
+      "kind": "tool",
+      "label": "execute",
+      "status": "failed",
+      "created_at": "2026-11-20T11:36:08.314436+00:00",
+      "detail": "cd /workspace && python3 downtime_report.py\n\nTraceback (most recent call last):\n  File \"/workspace/downtime_report.py\", line 162, in <module>\n    main()\n  File \"/workspace/downtime_report.py\", line 144, in main\n    del covered\n        ^^^^^^^\nUnboundLocalError: cannot access local variable 'covered' where it is not associated with a value\n\n[Command failed with exit code 1]"
+    }
+  ],
+  "duration_seconds": 287.36,
+  "finished": "2026-11-20T11:39:20+00:00",
+  "sources": {
+    "name": "generated_sources.zip",
+    "bytes": 3981,
+    "files": [
+      "downtime_report.py",
+      "verify_downtime.py"
+    ],
+    "sha256": "54148c9a809abccb77f3482e2caa06da97fffbf0e0551437e56e63365c99a359"
+  },
+  "source_collection": "Read-only artifact reader of the completed acceptance session",
+  "answer_file": "answer.txt"
+}

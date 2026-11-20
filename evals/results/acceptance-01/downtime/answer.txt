@@ -1,0 +1,54 @@
+已在沙箱内实际运行并核验，交付文件位于 `/workspace` 根目录：`downtime.csv`、`downtime.json`（另保留源数据 `downtime_input.csv` 与可复跑脚本 `downtime_report.py`、`verify_downtime.py`）。
+
+## 1. downtime.csv（date,machine,reason,minutes，仅正时长）
+
+```
+date,machine,reason,minutes
+2025-12-31,A,electrical,5
+2025-12-31,A,jam,15
+2025-12-31,B,maintenance,10
+2026-01-01,A,electrical,5
+2026-01-01,A,jam,25
+2026-01-01,B,jam,10
+2026-01-01,B,maintenance,10
+```
+共 7 行，合计 80 机器分钟。
+
+## 2. downtime.json
+
+```json
+{"total_machine_minutes": 80,
+ "by_reason": {"jam": 50, "electrical": 10, "maintenance": 20}}
+```
+
+## 3. 逐台解释：跨午夜与重叠
+
+**去重**：第 1 行与第 6 行 `A,jam,23:40→00:20` 四字段完全相同，只保留 1 条（丢弃 1 条）；`A,jam,00:20→00:30` 与之首尾相接而非重复，予以保留。有效记录 5 条。
+
+**机器 A**（覆盖 23:40→00:30，连续 50 分钟）
+- 23:40–23:55（15 min）：只有 jam → 归 jam，全在 12-31。
+- 23:55–00:05（10 min）：jam ∩ electrical，优先级 electrical 更高 → 整段 10 min 归 electrical，jam 该段计 0。**这段正好跨午夜**：按自然日切成 12-31 的 5 min（23:55–24:00）+ 01-01 的 5 min（00:00–00:05），两边都 >0，故各写一行。
+- 00:05–00:30（25 min）：第一条 jam 到 00:20 结束、第二条 jam 从 00:20 开始，左闭右开使 00:20 这一分钟只属于第二条，不重复也不留空洞；该 25 min 全在 01-01，同 (date,machine,reason) 合并为一行 → A,jam,25。
+- 结果：A 12-31 = 20，A 01-01 = 30。
+
+**机器 B**（覆盖 23:50→00:20，连续 30 分钟）
+- 23:50–00:00（10 min）：只有 maintenance → 12-31 行。
+- 00:00–00:10（10 min）：maintenance ∩ jam，maintenance 优先 → 归 maintenance；**maintenance 段本身跨午夜**，拆成 12-31 的 10 + 01-01 的 10，因此 maintenance 在两天各出现一行。
+- 00:10–00:20（10 min）：maintenance 已在 00:10 结束（右开，00:10 不含），只剩 jam → 01-01 行。
+- 结果：B 12-31 = 10，B 01-01 = 20。
+
+**原因合计**：electrical 10、maintenance 20、jam 50 = 80。
+
+## 4. 核验（沙箱实测输出）
+
+- 同一结果用**三种独立算法**互校：分钟位图法、区间扫描线法、边界切段法 → 逐格 `(date,machine,reason,minutes)` 与 CSV 读回值完全一致。
+- 不变量校验全部通过：union 总分钟 80 = CSV 单元格之和 80 = JSON `total_machine_minutes` = 各原因互斥之和（10+20+50）= A 50 + B 30；另 原始记录分钟 100 − 重叠 20（A 的 jam∩electrical 10 + B 的 maintenance∩jam 10）= 80。
+- 结构校验：CSV 表头精确为 `date,machine,reason,minutes`，无 0/负数行、无重复键；JSON 仅含约定两个顶层键，`by_reason` 恰含 jam/electrical/maintenance 三键。
+- 修过两处脚本问题（多余的 `del covered`、核验脚本中的占位语句），最终两份脚本均退出码 0。
+
+## 5. 约定与假设
+
+- 时间为本地时间、无夏令时，故直接按 `naive` datetime 计算；区间**左闭右开**，结束分钟不计入。
+- 优先级只在**同一机器**内生效，不同机器同刻并行各计 1 机器分钟。
+- 按 `start.date()` / `end.date()` 切自然日，跨界记录拆成多行；`[start, 24:00)` 归前一日、`[00:00, end)` 归后一日。
+- 数据仅 6 行、跨度 50 分钟，属于小样本演示；未见机器字段的其他取值，若后续有真实 CSV（含时区、多班次或更细粒度秒级时间戳），可直接替换 `downtime_input.csv` 后重跑 `python3 downtime_report.py && python3 verify_downtime.py`。

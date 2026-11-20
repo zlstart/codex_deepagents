@@ -1,0 +1,461 @@
+[
+  {
+    "seq": 1,
+    "id": "9db4ea94da404a9f84b4c413c7b50bf4",
+    "parent_id": null,
+    "kind": "run",
+    "label": "执行任务",
+    "status": "queued",
+    "created_at": "2026-11-20T11:25:56.435711+00:00"
+  },
+  {
+    "seq": 3,
+    "id": "9db4ea94da404a9f84b4c413c7b50bf4",
+    "parent_id": null,
+    "kind": "run",
+    "label": "执行任务",
+    "status": "running",
+    "created_at": "2026-11-20T11:25:56.439583+00:00"
+  },
+  {
+    "seq": 10,
+    "id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4",
+    "kind": "agent",
+    "label": "FAMSUN Agent",
+    "status": "running",
+    "created_at": "2026-11-20T11:26:12.731041+00:00"
+  },
+  {
+    "seq": 12,
+    "id": "9db4ea94da404a9f84b4c413c7b50bf4/mcp",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "tool",
+    "label": "LangChain 文档 MCP",
+    "status": "running",
+    "created_at": "2026-11-20T11:26:12.756606+00:00"
+  },
+  {
+    "seq": 13,
+    "id": "9db4ea94da404a9f84b4c413c7b50bf4/mcp",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "tool",
+    "label": "LangChain 文档 MCP",
+    "status": "completed",
+    "created_at": "2026-11-20T11:26:14.264672+00:00"
+  },
+  {
+    "seq": 16,
+    "id": "01a1f8b5-0523-72de-b5cc-b186644ad454",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "model",
+    "label": "模型响应",
+    "status": "running",
+    "created_at": "2026-11-20T11:26:15.332595+00:00"
+  },
+  {
+    "seq": 31,
+    "id": "01a1f8b5-0523-72de-b5cc-b186644ad454",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "model",
+    "label": "模型响应",
+    "status": "completed",
+    "created_at": "2026-11-20T11:26:29.725529+00:00"
+  },
+  {
+    "seq": 32,
+    "id": "01a1f8b5-3d71-71e1-936a-621b8f28fa38",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "tool",
+    "label": "read_file",
+    "status": "running",
+    "created_at": "2026-11-20T11:26:29.746489+00:00"
+  },
+  {
+    "seq": 33,
+    "id": "01a1f8b5-3d71-71e1-936a-621a60a19721",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "tool",
+    "label": "read_file",
+    "status": "running",
+    "created_at": "2026-11-20T11:26:29.749540+00:00"
+  },
+  {
+    "seq": 34,
+    "id": "01a1f8b5-3d71-71e1-936a-621c517bee4a",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "tool",
+    "label": "execute",
+    "status": "running",
+    "created_at": "2026-11-20T11:26:29.757572+00:00"
+  },
+  {
+    "seq": 35,
+    "id": "01a1f8b5-3d71-71e1-936a-621a60a19721",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "tool",
+    "label": "read_file",
+    "status": "completed",
+    "created_at": "2026-11-20T11:26:29.874632+00:00"
+  },
+  {
+    "seq": 36,
+    "id": "01a1f8b5-3d71-71e1-936a-621b8f28fa38",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "tool",
+    "label": "read_file",
+    "status": "completed",
+    "created_at": "2026-11-20T11:26:29.877091+00:00"
+  },
+  {
+    "seq": 37,
+    "id": "01a1f8b5-3d71-71e1-936a-621c517bee4a",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "tool",
+    "label": "execute",
+    "status": "completed",
+    "created_at": "2026-11-20T11:26:30.556651+00:00"
+  },
+  {
+    "seq": 38,
+    "id": "01a1f8b5-40a6-70b5-8a9d-e2dbd36bc40c",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "model",
+    "label": "模型响应",
+    "status": "running",
+    "created_at": "2026-11-20T11:26:30.566517+00:00"
+  },
+  {
+    "seq": 43,
+    "id": "01a1f8b5-40a6-70b5-8a9d-e2dbd36bc40c",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "model",
+    "label": "模型响应",
+    "status": "completed",
+    "created_at": "2026-11-20T11:26:57.228537+00:00"
+  },
+  {
+    "seq": 44,
+    "id": "01a1f8b5-a8e3-7175-8d80-3faba1152003",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "tool",
+    "label": "execute",
+    "status": "running",
+    "created_at": "2026-11-20T11:26:57.252596+00:00"
+  },
+  {
+    "seq": 45,
+    "id": "01a1f8b5-a8e3-7175-8d80-3faba1152003",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "tool",
+    "label": "execute",
+    "status": "completed",
+    "created_at": "2026-11-20T11:26:58.157977+00:00"
+  },
+  {
+    "seq": 46,
+    "id": "01a1f8b5-ac7c-71d8-8c29-10eb3ec4a9be",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "model",
+    "label": "模型响应",
+    "status": "running",
+    "created_at": "2026-11-20T11:26:58.172479+00:00"
+  },
+  {
+    "seq": 47,
+    "id": "01a1f8b5-ac7c-71d8-8c29-10eb3ec4a9be",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "model",
+    "label": "模型响应",
+    "status": "completed",
+    "created_at": "2026-11-20T11:27:26.742129+00:00"
+  },
+  {
+    "seq": 48,
+    "id": "01a1f8b6-1c26-7160-a181-61f93158f613",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "tool",
+    "label": "write_file",
+    "status": "running",
+    "created_at": "2026-11-20T11:27:26.759734+00:00"
+  },
+  {
+    "seq": 49,
+    "id": "01a1f8b6-1c26-7160-a181-61f93158f613",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "tool",
+    "label": "write_file",
+    "status": "completed",
+    "created_at": "2026-11-20T11:27:27.405301+00:00"
+  },
+  {
+    "seq": 50,
+    "id": "01a1f8b6-1ee2-75c2-a35a-0a22aa07c7c0",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "model",
+    "label": "模型响应",
+    "status": "running",
+    "created_at": "2026-11-20T11:27:27.458809+00:00"
+  },
+  {
+    "seq": 51,
+    "id": "01a1f8b6-1ee2-75c2-a35a-0a22aa07c7c0",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "model",
+    "label": "模型响应",
+    "status": "completed",
+    "created_at": "2026-11-20T11:27:56.450248+00:00"
+  },
+  {
+    "seq": 52,
+    "id": "01a1f8b6-9069-72eb-abdd-1cf1c5f66c89",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "tool",
+    "label": "write_file",
+    "status": "running",
+    "created_at": "2026-11-20T11:27:56.525132+00:00"
+  },
+  {
+    "seq": 53,
+    "id": "01a1f8b6-9069-72eb-abdd-1cf1c5f66c89",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "tool",
+    "label": "write_file",
+    "status": "completed",
+    "created_at": "2026-11-20T11:27:57.007699+00:00"
+  },
+  {
+    "seq": 54,
+    "id": "01a1f8b6-92ec-7063-b94b-76969ccca8b5",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "model",
+    "label": "模型响应",
+    "status": "running",
+    "created_at": "2026-11-20T11:27:57.166951+00:00"
+  },
+  {
+    "seq": 65,
+    "id": "01a1f8b6-92ec-7063-b94b-76969ccca8b5",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "model",
+    "label": "模型响应",
+    "status": "completed",
+    "created_at": "2026-11-20T11:28:05.535281+00:00"
+  },
+  {
+    "seq": 66,
+    "id": "01a1f8b6-b3b0-752c-b933-8e55459aa075",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "tool",
+    "label": "execute",
+    "status": "running",
+    "created_at": "2026-11-20T11:28:05.552640+00:00"
+  },
+  {
+    "seq": 67,
+    "id": "01a1f8b6-b3b0-752c-b933-8e55459aa075",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "tool",
+    "label": "execute",
+    "status": "completed",
+    "created_at": "2026-11-20T11:28:08.043320+00:00"
+  },
+  {
+    "seq": 68,
+    "id": "01a1f8b6-bd7b-734f-89f3-de00d30e47b3",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "model",
+    "label": "模型响应",
+    "status": "running",
+    "created_at": "2026-11-20T11:28:08.059812+00:00"
+  },
+  {
+    "seq": 75,
+    "id": "01a1f8b6-bd7b-734f-89f3-de00d30e47b3",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "model",
+    "label": "模型响应",
+    "status": "completed",
+    "created_at": "2026-11-20T11:28:32.478405+00:00"
+  },
+  {
+    "seq": 76,
+    "id": "01a1f8b7-1cec-7066-977b-140aa22fbd4b",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "tool",
+    "label": "write_file",
+    "status": "running",
+    "created_at": "2026-11-20T11:28:32.492594+00:00"
+  },
+  {
+    "seq": 77,
+    "id": "01a1f8b7-1cec-7066-977b-140aa22fbd4b",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "tool",
+    "label": "write_file",
+    "status": "completed",
+    "created_at": "2026-11-20T11:28:32.653575+00:00"
+  },
+  {
+    "seq": 78,
+    "id": "01a1f8b7-1d95-7379-8617-df9c5b74b5b4",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "model",
+    "label": "模型响应",
+    "status": "running",
+    "created_at": "2026-11-20T11:28:32.662176+00:00"
+  },
+  {
+    "seq": 79,
+    "id": "01a1f8b7-1d95-7379-8617-df9c5b74b5b4",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "model",
+    "label": "模型响应",
+    "status": "completed",
+    "created_at": "2026-11-20T11:28:36.224541+00:00"
+  },
+  {
+    "seq": 80,
+    "id": "01a1f8b7-2b91-7154-bb91-df790dc38bd8",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "tool",
+    "label": "execute",
+    "status": "running",
+    "created_at": "2026-11-20T11:28:36.242478+00:00"
+  },
+  {
+    "seq": 81,
+    "id": "01a1f8b7-2b91-7154-bb91-df790dc38bd8",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "tool",
+    "label": "execute",
+    "status": "completed",
+    "created_at": "2026-11-20T11:28:36.369819+00:00"
+  },
+  {
+    "seq": 82,
+    "id": "01a1f8b7-2c1b-7023-a2f4-668824801987",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "model",
+    "label": "模型响应",
+    "status": "running",
+    "created_at": "2026-11-20T11:28:36.379766+00:00"
+  },
+  {
+    "seq": 83,
+    "id": "01a1f8b7-2c1b-7023-a2f4-668824801987",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "model",
+    "label": "模型响应",
+    "status": "completed",
+    "created_at": "2026-11-20T11:28:47.852619+00:00"
+  },
+  {
+    "seq": 84,
+    "id": "01a1f8b7-58ff-774b-9e5c-7262c5a1f8a5",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "tool",
+    "label": "execute",
+    "status": "running",
+    "created_at": "2026-11-20T11:28:47.872648+00:00"
+  },
+  {
+    "seq": 85,
+    "id": "01a1f8b7-58ff-774b-9e5c-7261417fe633",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "tool",
+    "label": "read_file",
+    "status": "running",
+    "created_at": "2026-11-20T11:28:47.876041+00:00"
+  },
+  {
+    "seq": 86,
+    "id": "01a1f8b7-58ff-774b-9e5c-7262c5a1f8a5",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "tool",
+    "label": "execute",
+    "status": "completed",
+    "created_at": "2026-11-20T11:28:47.986421+00:00"
+  },
+  {
+    "seq": 87,
+    "id": "01a1f8b7-58ff-774b-9e5c-7261417fe633",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "tool",
+    "label": "read_file",
+    "status": "completed",
+    "created_at": "2026-11-20T11:28:48.002160+00:00"
+  },
+  {
+    "seq": 88,
+    "id": "01a1f8b7-598b-73ba-a590-7ee505ebb84f",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "model",
+    "label": "模型响应",
+    "status": "running",
+    "created_at": "2026-11-20T11:28:48.012421+00:00"
+  },
+  {
+    "seq": 89,
+    "id": "01a1f8b7-598b-73ba-a590-7ee505ebb84f",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "model",
+    "label": "模型响应",
+    "status": "completed",
+    "created_at": "2026-11-20T11:29:03.221559+00:00"
+  },
+  {
+    "seq": 90,
+    "id": "01a1f8b7-9503-7676-ab80-ce7924d10448",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "tool",
+    "label": "execute",
+    "status": "running",
+    "created_at": "2026-11-20T11:29:03.236630+00:00"
+  },
+  {
+    "seq": 91,
+    "id": "01a1f8b7-9503-7676-ab80-ce7924d10448",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "tool",
+    "label": "execute",
+    "status": "completed",
+    "created_at": "2026-11-20T11:29:03.324988+00:00"
+  },
+  {
+    "seq": 92,
+    "id": "01a1f8b7-956c-7423-ae8d-b8ba604d3bad",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "model",
+    "label": "模型响应",
+    "status": "running",
+    "created_at": "2026-11-20T11:29:03.341380+00:00"
+  },
+  {
+    "seq": 97,
+    "id": "01a1f8b7-956c-7423-ae8d-b8ba604d3bad",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "kind": "model",
+    "label": "模型响应",
+    "status": "completed",
+    "created_at": "2026-11-20T11:29:19.442449+00:00"
+  },
+  {
+    "seq": 98,
+    "id": "9db4ea94da404a9f84b4c413c7b50bf4/agent",
+    "parent_id": "9db4ea94da404a9f84b4c413c7b50bf4",
+    "kind": "agent",
+    "label": "FAMSUN Agent",
+    "status": "completed",
+    "created_at": "2026-11-20T11:29:19.450597+00:00"
+  },
+  {
+    "seq": 99,
+    "id": "9db4ea94da404a9f84b4c413c7b50bf4",
+    "parent_id": null,
+    "kind": "run",
+    "label": "执行任务",
+    "status": "completed",
+    "created_at": "2026-11-20T11:29:20.484115+00:00"
+  }
+]

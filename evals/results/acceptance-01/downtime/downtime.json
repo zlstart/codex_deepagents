@@ -1,0 +1,8 @@
+{
+  "total_machine_minutes": 80,
+  "by_reason": {
+    "jam": 50,
+    "electrical": 10,
+    "maintenance": 20
+  }
+}

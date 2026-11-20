@@ -1,0 +1,106 @@
+{
+  "title": "三体三维轨道仿真",
+  "scenario": "three_body",
+  "started": "2026-11-20T11:25:56+00:00",
+  "passed": false,
+  "agent_status": "failed",
+  "artifacts": [
+    {
+      "name": "trajectory.csv",
+      "bytes": 30539,
+      "sha256": "4164f5bbb756c4625a7e0422cef2399e64b883a7c4c11ef1ded843989ee973b5"
+    },
+    {
+      "name": "orbits.png",
+      "bytes": 322012,
+      "sha256": "49171f3138f7bb5c086a88acdc673096d7efc5bb36871fa68cec01034aa5bae5"
+    }
+  ],
+  "checks": [],
+  "errors": [
+    "InvalidArtifact: agent ended failed: 任务已达到最大执行步数，请缩小任务范围或在本会话继续"
+  ],
+  "session_id": "b0d6f8f1ad2c4e9c9524e535b2c47aae",
+  "run_id": "069abc54db794c7fb1d6a8b73dbaac23",
+  "agent_error": "任务已达到最大执行步数，请缩小任务范围或在本会话继续",
+  "node_counts": {
+    "run": 1,
+    "agent": 1,
+    "tool": 34,
+    "model": 32
+  },
+  "failed_steps": [
+    {
+      "seq": 69,
+      "id": "01a1f8b6-b0a9-7128-bd5c-550c0144444a",
+      "parent_id": "069abc54db794c7fb1d6a8b73dbaac23/agent",
+      "kind": "tool",
+      "label": "execute",
+      "status": "failed",
+      "created_at": "2026-11-20T11:28:08.439252+00:00",
+      "detail": "cd /workspace && python3 three_body.py\n\nTraceback (most recent call last):\n  File \"/workspace/three_body.py\", line 363, in <module>\n    main()\n  File \"/workspace/three_body.py\", line 191, in main\n    ang_mom = np.cross(R, V).sum(axis=0)  # (3, n)\n              ^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/site-packages/numpy/_core/numeric.py\", line 1680, in cross\n    raise ValueError(\nValueError: Both input arrays must be (arrays of) 3-dimensional vectors, but they are 101 and 101 dimensional instead.\n\n[Command failed with exit code 1]"
+    },
+    {
+      "seq": 106,
+      "id": "01a1f8b7-eab1-7787-989e-28e849aa62de",
+      "parent_id": "069abc54db794c7fb1d6a8b73dbaac23/agent",
+      "kind": "tool",
+      "label": "execute",
+      "status": "failed",
+      "created_at": "2026-11-20T11:29:25.262347+00:00",
+      "detail": "cd /workspace && time python3 three_body.py\n\n/bin/sh: 1: time: not found\n\n[Command failed with exit code 127]"
+    },
+    {
+      "seq": 170,
+      "id": "01a1f8ba-80fd-73be-b3b0-c612d0030d63",
+      "parent_id": "069abc54db794c7fb1d6a8b73dbaac23/agent",
+      "kind": "tool",
+      "label": "edit_file",
+      "status": "failed",
+      "created_at": "2026-11-20T11:32:14.720986+00:00",
+      "detail": "ValidationError"
+    },
+    {
+      "seq": 213,
+      "id": "069abc54db794c7fb1d6a8b73dbaac23/agent",
+      "parent_id": "069abc54db794c7fb1d6a8b73dbaac23",
+      "kind": "agent",
+      "label": "FAMSUN Agent",
+      "status": "failed",
+      "created_at": "2026-11-20T11:34:27.478500+00:00",
+      "detail": null
+    },
+    {
+      "seq": 214,
+      "id": "069abc54db794c7fb1d6a8b73dbaac23",
+      "parent_id": null,
+      "kind": "run",
+      "label": "执行任务",
+      "status": "failed",
+      "created_at": "2026-11-20T11:34:29.962281+00:00",
+      "detail": "任务已达到最大执行步数，请缩小任务范围或在本会话继续"
+    }
+  ],
+  "duration_seconds": 516.54,
+  "finished": "2026-11-20T11:34:32+00:00",
+  "listed_files": [
+    "orbits.png",
+    "three_body.py",
+    "trajectory.csv"
+  ],
+  "sources": {
+    "name": "generated_sources.zip",
+    "bytes": 6861,
+    "files": [
+      "three_body.py"
+    ],
+    "sha256": "f611d10795405061ccd2e168cc259e47a16e886dbf6c5cc9157ac8b5180660e8"
+  },
+  "source_collection": "Read-only artifact reader of the completed acceptance session",
+  "postmortem_collection": "Read-only inspection of the failed acceptance session after the run ended.",
+  "postmortem_checks": [
+    "最大质心位移 1.7e-12，总动量模长峰值 7.03e-12",
+    "303 个三维状态，最大状态误差 7.85e-12，最大相对能量漂移 8.15e-12",
+    "2600×1440 PNG"
+  ]
+}

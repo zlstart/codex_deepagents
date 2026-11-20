@@ -7,7 +7,8 @@
     "status": "pass",
     "detail": {
       "engine": "29.9.2",
-      "sandbox_image_id": "sha256:6c3c3659aeff5c2a25eeb4ef185d33ce1aa63a661694552827d7d45d522641b8"
+      "sandbox_image_id": "sha256:1a9cb540972459bafea959b9775705e3ac344ec3c221282bd5f500a54ec79165",
+      "helper_image_id": "sha256:8b025ad6786e175b87d17fff3f31e92f41bc8aa9f80809e165fcf7e499984a47"
     }
   },
   "resource_isolation": {

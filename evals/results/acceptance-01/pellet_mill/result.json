@@ -1,0 +1,57 @@
+{
+  "title": "环模制粒机装配与爆炸图",
+  "scenario": "pellet_mill",
+  "started": "2026-11-20T11:25:56+00:00",
+  "passed": false,
+  "agent_status": "failed",
+  "artifacts": [],
+  "checks": [],
+  "errors": [
+    "InvalidArtifact: agent ended failed: 模型连接失败，请检查模型端点与网络后重试"
+  ],
+  "session_id": "7b57f7a1ba244f059b4bde2c2efbeb50",
+  "run_id": "03c52897bb894c6fb3c9f6d329072841",
+  "agent_error": "模型连接失败，请检查模型端点与网络后重试",
+  "node_counts": {
+    "run": 1,
+    "agent": 1,
+    "tool": 5,
+    "model": 4
+  },
+  "failed_steps": [
+    {
+      "seq": 303,
+      "id": "01a1f8ba-7a79-71b8-af07-872d8bf6a1c5",
+      "parent_id": "03c52897bb894c6fb3c9f6d329072841/agent",
+      "kind": "model",
+      "label": "模型响应",
+      "status": "failed",
+      "created_at": "2026-11-20T11:38:14.651093+00:00",
+      "detail": "OpenAITimeoutError"
+    },
+    {
+      "seq": 304,
+      "id": "03c52897bb894c6fb3c9f6d329072841/agent",
+      "parent_id": "03c52897bb894c6fb3c9f6d329072841",
+      "kind": "agent",
+      "label": "FAMSUN Agent",
+      "status": "failed",
+      "created_at": "2026-11-20T11:38:14.667960+00:00",
+      "detail": null
+    },
+    {
+      "seq": 305,
+      "id": "03c52897bb894c6fb3c9f6d329072841",
+      "parent_id": null,
+      "kind": "run",
+      "label": "执行任务",
+      "status": "failed",
+      "created_at": "2026-11-20T11:38:18.150778+00:00",
+      "detail": "模型连接失败，请检查模型端点与网络后重试"
+    }
+  ],
+  "duration_seconds": 743.64,
+  "finished": "2026-11-20T11:38:20+00:00",
+  "listed_files": [],
+  "postmortem_collection": "Read-only inspection of the failed acceptance session after the run ended."
+}

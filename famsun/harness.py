@@ -21,6 +21,7 @@ from openai import APIConnectionError, APIStatusError
 
 from .budget import BudgetReminder
 from .memory import SessionMemory
+from .runtime import BudgetClosed
 from .trace import ActivityTrace, Emit
 
 SKILLS = "/opt/famsun/skills"
@@ -172,7 +173,9 @@ async def run_agent(
     await emit({**agent_node, "status": "running"})
     status = "failed"
     step_limit = getattr(settings, "graph_recursion_limit", 160)
-    budget = BudgetReminder(trace, step_limit, getattr(settings, "run_timeout", 900))
+    time_limit = getattr(settings, "run_timeout", 900)
+    budget = BudgetReminder(trace, step_limit, time_limit)
+    child_budget = BudgetReminder(trace, step_limit, time_limit, allow_summary=False)
     try:
         tools = []
         if settings.mcp_enabled:
@@ -229,7 +232,7 @@ async def run_agent(
                 tools=tools,
                 skills=[SKILLS],
                 subagents=[
-                    {**spec, "middleware": [budget, memory]} for spec in SUBAGENTS
+                    {**spec, "middleware": [child_budget, memory]} for spec in SUBAGENTS
                 ],
                 middleware=[budget, memory],
                 system_prompt=SYSTEM_PROMPT,
@@ -242,11 +245,36 @@ async def run_agent(
             }
             previous = await load_state(agent, config)
             messages = interrupted_tool_results(previous.values.get("messages", []))
-            result = await agent.ainvoke(
-                {"messages": [*messages, HumanMessage(content=prompt)]},
-                config=config,
-                durability="sync",
-            )
+
+            user_message = HumanMessage(content=prompt, id=f"famsun-input-{run_id}")
+
+            async def invoke(turn_messages):
+                return await agent.ainvoke(
+                    {"messages": turn_messages},
+                    config=config,
+                    durability="sync",
+                )
+
+            # Keep the final tenth of wall time available even when a provider or tool
+            # is still busy. Resume only from persisted evidence and never replay a call.
+            async with asyncio.timeout_at(budget.deadline):
+                work_timer = asyncio.timeout_at(budget.final_at)
+                try:
+                    async with work_timer:
+                        budget.work_timer = work_timer
+                        result = await invoke([*messages, user_message])
+                except TimeoutError:
+                    if not work_timer.expired():
+                        raise
+                    budget.force_summary = True
+                    snapshot = await load_state(agent, config)
+                    history = snapshot.values.get("messages", [])
+                    repairs = interrupted_tool_results(history)
+                    if not any(msg.id == user_message.id for msg in history):
+                        repairs.append(user_message)
+                    result = await invoke(repairs)
+        if budget.summary:
+            raise BudgetClosed(budget.summary)
         last = result["messages"][-1]
         if (
             not isinstance(last, AIMessage)
@@ -267,6 +295,8 @@ async def run_agent(
             f"模型服务返回 HTTP {exc.status_code}，请检查模型配置及服务状态"
         ) from None
     except GraphRecursionError:
+        if budget.summary:
+            raise BudgetClosed(budget.summary) from None
         raise HarnessError(
             "任务已达到最大执行步数，请缩小任务范围或在本会话继续"
         ) from None

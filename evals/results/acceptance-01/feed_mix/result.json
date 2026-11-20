@@ -1,0 +1,102 @@
+{
+  "title": "四原料饲料配方优化",
+  "scenario": "feed_mix",
+  "started": "2026-11-20T11:29:42+00:00",
+  "passed": false,
+  "agent_status": "failed",
+  "artifacts": [
+    {
+      "name": "formula.json",
+      "bytes": 255,
+      "sha256": "345a92489a8c1c8346be350089de0e0721a4381d394e1e9302acfcdcc1d2c544"
+    }
+  ],
+  "checks": [],
+  "errors": [
+    "InvalidArtifact: agent ended failed: 任务超过执行时限，已停止"
+  ],
+  "session_id": "cbad46dce3db42539e034deac734edf5",
+  "run_id": "c4bebbf848604e55afa2accd25e01650",
+  "agent_error": "任务超过执行时限，已停止",
+  "node_counts": {
+    "run": 1,
+    "agent": 1,
+    "tool": 29,
+    "model": 26
+  },
+  "failed_steps": [
+    {
+      "seq": 339,
+      "id": "01a1f8c3-7f07-7105-b3b6-4648c4a40bb1",
+      "parent_id": "c4bebbf848604e55afa2accd25e01650/agent",
+      "kind": "tool",
+      "label": "execute",
+      "status": "failed",
+      "created_at": "2026-11-20T11:42:04.535417+00:00",
+      "detail": "cd /workspace && python sensitivity.py\n\nFile \"/workspace/sensitivity.py\", line 28\n    steps = [(\"batch 1000 -> 1001 kg   (+1 kg)\", dict(batch=1001.0), h=1.0),\n                                                                     ^^^^^\nSyntaxError: invalid syntax. Maybe you meant '==' or ':=' instead of '='?\n\n[Command failed with exit code 1]"
+    },
+    {
+      "seq": 371,
+      "id": "01a1f8c5-1a84-76a8-bd45-eb63df4a2a44",
+      "parent_id": "c4bebbf848604e55afa2accd25e01650/agent",
+      "kind": "tool",
+      "label": "edit_file",
+      "status": "failed",
+      "created_at": "2026-11-20T11:43:49.515274+00:00",
+      "detail": "/workspace/verify_formula.py\n\nError: String not found in file: '            A_ub=[[-9, -46, -16, 0], [2, 4, 12, 0], [-0.03, -0.32, -0.13, -38],\n                  [0.03, 0.32, 0.13, 38]],\n            b_ub=[-18000, 5000, +750, 1000], A_eq=[[1, 1, 1, 1]], b_eq=[1000],'"
+    },
+    {
+      "seq": 375,
+      "id": "01a1f8c5-2c4c-71d6-844d-4c5f088288bc",
+      "parent_id": "c4bebbf848604e55afa2accd25e01650/agent",
+      "kind": "tool",
+      "label": "execute",
+      "status": "failed",
+      "created_at": "2026-11-20T11:43:54.102386+00:00",
+      "detail": "cd /workspace && python verify_formula.py && echo \"-----\" && cat formula.json && ls -l /workspace\n\nkg from file: [525.026642984, 201.6252220249, 250.0, 23.3481349911]\n  PASS all kg >= 0\n  PASS sum kg = 1000\n  PASS corn >= 350\n  PASS soy <= 400\n  PASS bran <= 250\n  PASS lime <= 40\n  PASS protein >= 18%\n  FAIL fiber <= 5%\n  FAIL 0.75% <= calcium <= 1.0%\n  FAIL stored protein matches\n  FAIL stored fiber matches\n  FAIL stored calcium matches\n  PASS stored cost matches\n  PASS cost = sum(price*kg)/1000 exactly\n\nrecomputed: total=1000.0000000000 kg | protein=1800.0000000001% | fiber=485.6554174068% | calcium=99.9999999999% | cost=265.0400532860 yua…"
+    },
+    {
+      "seq": 387,
+      "id": "01a1f8c5-ca50-72d2-90e4-4528dfbc457e",
+      "parent_id": "c4bebbf848604e55afa2accd25e01650/agent",
+      "kind": "tool",
+      "label": "edit_file",
+      "status": "failed",
+      "created_at": "2026-11-20T11:44:34.565261+00:00",
+      "detail": "/workspace/verify_formula.py\n\nError: String not found in file: 'tot = sum(x)\nprot = sum(p * v for p, v in zip(PT, x)) / tot * 100\nfib = sum(p * v for p, v in zip(FB, x)) / tot * 100\nca = float(sum(Fraction(str(p)) * Fraction(str(v)) for p, v in zip(CE, x))) / float(tot) * 100\ncost = sum(p * v for p, v in zip(PRICE, x)) / tot'"
+    },
+    {
+      "seq": 393,
+      "id": "c4bebbf848604e55afa2accd25e01650",
+      "parent_id": null,
+      "kind": "run",
+      "label": "执行任务",
+      "status": "failed",
+      "created_at": "2026-11-20T11:44:45.983871+00:00",
+      "detail": "任务超过执行时限，已停止"
+    }
+  ],
+  "duration_seconds": 906.39,
+  "finished": "2026-11-20T11:44:49+00:00",
+  "listed_files": [
+    "formula.json",
+    "lp_feed.py",
+    "sensitivity.py",
+    "verify_formula.py"
+  ],
+  "postmortem_collection": "Read-only inspection of the failed acceptance session after the run ended.",
+  "postmortem_checks": [
+    "总质量 1 吨，各原料和营养成分满足约束，最优成本为每吨 265.04005 元"
+  ],
+  "sources": {
+    "name": "generated_sources.zip",
+    "bytes": 6921,
+    "files": [
+      "lp_feed.py",
+      "sensitivity.py",
+      "verify_formula.py"
+    ],
+    "sha256": "6b343bfb182181918d28cb6c242385f94cb8857bc716545cd3821d0207260546"
+  },
+  "source_collection": "Read-only artifact reader of the completed acceptance session"
+}

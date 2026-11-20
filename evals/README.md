@@ -34,3 +34,5 @@ uv run --locked --group eval python -m evals.live \
   --reinspect var/evals/first-run/three_body/result.json \
   --base-url http://127.0.0.1:8000 --output var/evals/three-body-files-recheck
 ```
+
+`--followup <result.json>` 验收同一会话的恢复。该模式要求原运行终态为失败、原始执行树完整、全部指定产物已经通过独立校验；在这些条件满足时才提交一次简短的文件检查与总结请求。恢复报告保留原运行 ID、跟进运行 ID、两轮轨迹与 SHA-256，并确认产物保持一致。该结果单独计为多轮恢复。

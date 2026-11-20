@@ -31,6 +31,12 @@ docker compose exec app python -m famsun.doctor --strict --live-model
 - 科学仿真技能可读取任务指定的质量、初值和积分区间，求解 N 体轨道并输出 CSV、图像和守恒误差。机械装配技能可从零件清单构造命名网格，生成装配和爆炸 GLB；模型负责确定零件、尺寸、姿态及拆卸方向。
 - 工程技能以标准 `SKILL.md` 编写，位置为 [famsun/skills](famsun/skills)。新增技能后重新构建沙箱镜像。官方文档 MCP 使用 `https://docs.langchain.com/mcp`，只向模型注册文档检索工具；文档服务故障会记录在轨迹中。
 
+## 模型与验收样例
+
+[五项真实运行的报告和可下载产物](evals/results/README.md)包含三体轨道数据、制粒机装配与爆炸 GLB、振动频谱、配方及停机归因。另附一份参数化建模的[制粒机工程展示样例](examples/pellet_press/README.md)，带可编辑源码、检修门、穿孔环模和成对压辊。
+
+![制粒机工程示例的装配与爆炸视图](examples/pellet_press/preview.png)
+
 ## 架构
 
 ```mermaid

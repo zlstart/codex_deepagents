@@ -1,0 +1,8 @@
+date,machine,reason,minutes
+2025-12-31,A,electrical,5
+2025-12-31,A,jam,15
+2025-12-31,B,maintenance,10
+2026-01-01,A,electrical,5
+2026-01-01,A,jam,25
+2026-01-01,B,jam,10
+2026-01-01,B,maintenance,10

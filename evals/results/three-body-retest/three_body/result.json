@@ -1,0 +1,97 @@
+{
+  "title": "三体三维轨道仿真",
+  "scenario": "three_body",
+  "started": "2026-11-20T11:35:33+00:00",
+  "passed": false,
+  "agent_status": "failed",
+  "artifacts": [
+    {
+      "name": "trajectory.csv",
+      "bytes": 30315,
+      "sha256": "1028af5446b529b2a52cb0034a1cae364238d30b6ec6fc47f46f9c87f7f5cffb"
+    },
+    {
+      "name": "orbits.png",
+      "bytes": 234435,
+      "sha256": "99d6c35bf4e1fc81bb5414c2c4f04d5a50e9b2e43359441031303874bd7ed820"
+    }
+  ],
+  "checks": [
+    "最大质心位移 5.77e-13，总动量模长峰值 1.73e-12",
+    "303 个三维状态，最大状态误差 4.12e-12，最大相对能量漂移 3.63e-12",
+    "1500×1050 PNG"
+  ],
+  "errors": [
+    "agent ended failed: 任务已达到最大执行步数，请缩小任务范围或在本会话继续"
+  ],
+  "session_id": "9ffcefba320c47b7bee24aaca0474876",
+  "run_id": "b5b862affa14424cad79212249b90843",
+  "agent_error": "任务已达到最大执行步数，请缩小任务范围或在本会话继续",
+  "listed_files": [
+    "orbits.png",
+    "run_report.txt",
+    "three_body.py",
+    "trajectory.csv",
+    "verify_artifacts.py",
+    "verify_report.txt"
+  ],
+  "sources": {
+    "name": "generated_sources.zip",
+    "bytes": 7665,
+    "files": [
+      "three_body.py",
+      "verify_artifacts.py"
+    ],
+    "sha256": "74887dc49e85ff74cc4dddd866577c123ff7992c10619f825574a9ec623af40e"
+  },
+  "node_counts": {
+    "run": 1,
+    "agent": 1,
+    "tool": 54,
+    "model": 52
+  },
+  "failed_steps": [
+    {
+      "seq": 47,
+      "id": "01a1f8c1-36f6-7689-9627-78fd5f441baf",
+      "parent_id": "b5b862affa14424cad79212249b90843/agent",
+      "kind": "tool",
+      "label": "edit_file",
+      "status": "failed",
+      "created_at": "2026-11-20T11:39:34.766370+00:00",
+      "detail": "/workspace/three_body.py\n\nError: String not found in file: 'print(f\" 角动量漂移     max|ΔL|           = {dL_abs:.3e}   (相对 |L0|: {dL_rel:.3e})\")\nprint(f\" 质心位移       max|R_com−R_com0| = {dC_abs:.3e}\")\nprint(f\" 质心剥离匀速后 max|...|          = {dC_inertial:.3e}\")\nprint(f\" 共面性         max|n·r|          = {plane_dev:.3e}\")\nprint(f\" ∠(L0, n)                        = {L_dir_dev:.3e} deg\")\nprint(f\" 动能/势能 t=1: KE = {0.5 * np.sum(M[:, None] * v_t[-1] ** 2):.12f}, \"\n      f\"PE = {E[-1] - 0.5 * np.sum(M[:, None] * v_t[-1] ** 2):.12f}\")\nprint(f\" 最近两体距离                    = {min_pair:.6f}  (无…"
+    },
+    {
+      "seq": 95,
+      "id": "01a1f8c2-bfb3-71f4-9b4f-b69cb3813a3b",
+      "parent_id": "b5b862affa14424cad79212249b90843/agent",
+      "kind": "tool",
+      "label": "edit_file",
+      "status": "failed",
+      "created_at": "2026-11-20T11:41:15.215344+00:00",
+      "detail": "/workspace/verify_artifacts.py\n\nError: String not found in file: 'check(\"等间隔 0.01\", np.allclose(np.diff(ts), 0.01, atol=1e-12) and len(ts) == 101,\n      f\"min={np.diff(ts).min():.10f}, max={np.diff(ts).max():.10f}, 时刻数={len(ts)}\")'"
+    },
+    {
+      "seq": 216,
+      "id": "b5b862affa14424cad79212249b90843/agent",
+      "parent_id": "b5b862affa14424cad79212249b90843",
+      "kind": "agent",
+      "label": "FAMSUN Agent",
+      "status": "failed",
+      "created_at": "2026-11-20T11:48:04.069201+00:00",
+      "detail": null
+    },
+    {
+      "seq": 217,
+      "id": "b5b862affa14424cad79212249b90843",
+      "parent_id": null,
+      "kind": "run",
+      "label": "执行任务",
+      "status": "failed",
+      "created_at": "2026-11-20T11:48:08.986025+00:00",
+      "detail": "任务已达到最大执行步数，请缩小任务范围或在本会话继续"
+    }
+  ],
+  "duration_seconds": 798.44,
+  "finished": "2026-11-20T11:48:52+00:00"
+}

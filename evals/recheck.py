@@ -23,6 +23,16 @@ def recheck(directory, scenario):
         set(scenario.outputs) == set(signatures),
         "evidence does not include the expected artifacts",
     )
+    if sources := result.get("sources"):
+        require(
+            sources["name"] == "generated_sources.zip", "unexpected source archive path"
+        )
+        archive = (root / sources["name"]).read_bytes()
+        require(
+            len(archive) == sources["bytes"]
+            and hashlib.sha256(archive).hexdigest() == sources["sha256"],
+            "generated source archive digest mismatch",
+        )
     for name in scenario.outputs:
         data = (root / name).read_bytes()
         require(

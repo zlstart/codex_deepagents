@@ -1,0 +1,212 @@
+[
+  {
+    "seq": 5,
+    "id": "03c52897bb894c6fb3c9f6d329072841",
+    "parent_id": null,
+    "kind": "run",
+    "label": "执行任务",
+    "status": "queued",
+    "created_at": "2026-11-20T11:25:56.446859+00:00"
+  },
+  {
+    "seq": 6,
+    "id": "03c52897bb894c6fb3c9f6d329072841",
+    "parent_id": null,
+    "kind": "run",
+    "label": "执行任务",
+    "status": "running",
+    "created_at": "2026-11-20T11:25:56.925966+00:00"
+  },
+  {
+    "seq": 9,
+    "id": "03c52897bb894c6fb3c9f6d329072841/agent",
+    "parent_id": "03c52897bb894c6fb3c9f6d329072841",
+    "kind": "agent",
+    "label": "FAMSUN Agent",
+    "status": "running",
+    "created_at": "2026-11-20T11:26:12.724228+00:00"
+  },
+  {
+    "seq": 11,
+    "id": "03c52897bb894c6fb3c9f6d329072841/mcp",
+    "parent_id": "03c52897bb894c6fb3c9f6d329072841/agent",
+    "kind": "tool",
+    "label": "LangChain 文档 MCP",
+    "status": "running",
+    "created_at": "2026-11-20T11:26:12.754454+00:00"
+  },
+  {
+    "seq": 15,
+    "id": "03c52897bb894c6fb3c9f6d329072841/mcp",
+    "parent_id": "03c52897bb894c6fb3c9f6d329072841/agent",
+    "kind": "tool",
+    "label": "LangChain 文档 MCP",
+    "status": "completed",
+    "created_at": "2026-11-20T11:26:14.697560+00:00"
+  },
+  {
+    "seq": 18,
+    "id": "01a1f8b5-0578-74e0-8135-2eacb9edcea8",
+    "parent_id": "03c52897bb894c6fb3c9f6d329072841/agent",
+    "kind": "model",
+    "label": "模型响应",
+    "status": "running",
+    "created_at": "2026-11-20T11:26:15.416533+00:00"
+  },
+  {
+    "seq": 25,
+    "id": "01a1f8b5-0578-74e0-8135-2eacb9edcea8",
+    "parent_id": "03c52897bb894c6fb3c9f6d329072841/agent",
+    "kind": "model",
+    "label": "模型响应",
+    "status": "completed",
+    "created_at": "2026-11-20T11:26:22.532073+00:00"
+  },
+  {
+    "seq": 26,
+    "id": "01a1f8b5-214a-7080-9130-a10b8144eaa1",
+    "parent_id": "03c52897bb894c6fb3c9f6d329072841/agent",
+    "kind": "tool",
+    "label": "ls",
+    "status": "running",
+    "created_at": "2026-11-20T11:26:22.539159+00:00"
+  },
+  {
+    "seq": 27,
+    "id": "01a1f8b5-214a-7080-9130-a10ae6de3a31",
+    "parent_id": "03c52897bb894c6fb3c9f6d329072841/agent",
+    "kind": "tool",
+    "label": "read_file",
+    "status": "running",
+    "created_at": "2026-11-20T11:26:22.542378+00:00"
+  },
+  {
+    "seq": 28,
+    "id": "01a1f8b5-214a-7080-9130-a10b8144eaa1",
+    "parent_id": "03c52897bb894c6fb3c9f6d329072841/agent",
+    "kind": "tool",
+    "label": "ls",
+    "status": "completed",
+    "created_at": "2026-11-20T11:26:22.624692+00:00"
+  },
+  {
+    "seq": 29,
+    "id": "01a1f8b5-214a-7080-9130-a10ae6de3a31",
+    "parent_id": "03c52897bb894c6fb3c9f6d329072841/agent",
+    "kind": "tool",
+    "label": "read_file",
+    "status": "completed",
+    "created_at": "2026-11-20T11:26:22.630355+00:00"
+  },
+  {
+    "seq": 30,
+    "id": "01a1f8b5-21ad-720e-af34-28d658a37530",
+    "parent_id": "03c52897bb894c6fb3c9f6d329072841/agent",
+    "kind": "model",
+    "label": "模型响应",
+    "status": "running",
+    "created_at": "2026-11-20T11:26:22.637883+00:00"
+  },
+  {
+    "seq": 55,
+    "id": "01a1f8b5-21ad-720e-af34-28d658a37530",
+    "parent_id": "03c52897bb894c6fb3c9f6d329072841/agent",
+    "kind": "model",
+    "label": "模型响应",
+    "status": "completed",
+    "created_at": "2026-11-20T11:27:58.992128+00:00"
+  },
+  {
+    "seq": 56,
+    "id": "01a1f8b6-9a1b-71e7-8dd6-41dd3a7b5dff",
+    "parent_id": "03c52897bb894c6fb3c9f6d329072841/agent",
+    "kind": "tool",
+    "label": "execute",
+    "status": "running",
+    "created_at": "2026-11-20T11:27:59.003967+00:00"
+  },
+  {
+    "seq": 61,
+    "id": "01a1f8b6-9a1b-71e7-8dd6-41dd3a7b5dff",
+    "parent_id": "03c52897bb894c6fb3c9f6d329072841/agent",
+    "kind": "tool",
+    "label": "execute",
+    "status": "completed",
+    "created_at": "2026-11-20T11:28:03.072762+00:00"
+  },
+  {
+    "seq": 62,
+    "id": "01a1f8b6-aa2b-7332-81bb-5546f769a62c",
+    "parent_id": "03c52897bb894c6fb3c9f6d329072841/agent",
+    "kind": "model",
+    "label": "模型响应",
+    "status": "running",
+    "created_at": "2026-11-20T11:28:03.116491+00:00"
+  },
+  {
+    "seq": 164,
+    "id": "01a1f8b6-aa2b-7332-81bb-5546f769a62c",
+    "parent_id": "03c52897bb894c6fb3c9f6d329072841/agent",
+    "kind": "model",
+    "label": "模型响应",
+    "status": "completed",
+    "created_at": "2026-11-20T11:32:11.167275+00:00"
+  },
+  {
+    "seq": 165,
+    "id": "01a1f8ba-7371-7256-9f5e-3f346a31a88c",
+    "parent_id": "03c52897bb894c6fb3c9f6d329072841/agent",
+    "kind": "tool",
+    "label": "execute",
+    "status": "running",
+    "created_at": "2026-11-20T11:32:11.250638+00:00"
+  },
+  {
+    "seq": 166,
+    "id": "01a1f8ba-7371-7256-9f5e-3f346a31a88c",
+    "parent_id": "03c52897bb894c6fb3c9f6d329072841/agent",
+    "kind": "tool",
+    "label": "execute",
+    "status": "completed",
+    "created_at": "2026-11-20T11:32:13.013763+00:00"
+  },
+  {
+    "seq": 167,
+    "id": "01a1f8ba-7a79-71b8-af07-872d8bf6a1c5",
+    "parent_id": "03c52897bb894c6fb3c9f6d329072841/agent",
+    "kind": "model",
+    "label": "模型响应",
+    "status": "running",
+    "created_at": "2026-11-20T11:32:13.050116+00:00"
+  },
+  {
+    "seq": 303,
+    "id": "01a1f8ba-7a79-71b8-af07-872d8bf6a1c5",
+    "parent_id": "03c52897bb894c6fb3c9f6d329072841/agent",
+    "kind": "model",
+    "label": "模型响应",
+    "status": "failed",
+    "created_at": "2026-11-20T11:38:14.651093+00:00",
+    "detail": "OpenAITimeoutError"
+  },
+  {
+    "seq": 304,
+    "id": "03c52897bb894c6fb3c9f6d329072841/agent",
+    "parent_id": "03c52897bb894c6fb3c9f6d329072841",
+    "kind": "agent",
+    "label": "FAMSUN Agent",
+    "status": "failed",
+    "created_at": "2026-11-20T11:38:14.667960+00:00",
+    "detail": null
+  },
+  {
+    "seq": 305,
+    "id": "03c52897bb894c6fb3c9f6d329072841",
+    "parent_id": null,
+    "kind": "run",
+    "label": "执行任务",
+    "status": "failed",
+    "created_at": "2026-11-20T11:38:18.150778+00:00",
+    "detail": "模型连接失败，请检查模型端点与网络后重试"
+  }
+]

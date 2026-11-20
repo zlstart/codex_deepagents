@@ -1,0 +1,60 @@
+{
+  "title": "轴承振动频谱诊断",
+  "scenario": "vibration",
+  "started": "2026-11-20T11:25:56+00:00",
+  "passed": true,
+  "agent_status": "completed",
+  "artifacts": [
+    {
+      "name": "spectrum.csv",
+      "bytes": 65151,
+      "sha256": "6ce2e868e564c63654a4d32ffe38a21935e5c4d64dae372d77f07b18c346e0a8"
+    },
+    {
+      "name": "vibration.json",
+      "bytes": 713,
+      "sha256": "5db7a7b3118cf6c59ac9020f584c3dd501f873f233f99afd097fd9e81ef87128"
+    },
+    {
+      "name": "spectrum.png",
+      "bytes": 100572,
+      "sha256": "80103da5f467be660a9eb15cefe505adc787488fad96f2fa154ece11821377d4"
+    }
+  ],
+  "checks": [
+    "51 条生命周期事件，25 个节点，最大深度 3 层",
+    "2,049 个单边 FFT 频点及振幅、前三个峰值频率和交流均方根通过独立校验",
+    "1800×920 PNG"
+  ],
+  "errors": [],
+  "session_id": "a302a9b6749049af956b608bcb982b21",
+  "run_id": "9db4ea94da404a9f84b4c413c7b50bf4",
+  "agent_error": null,
+  "listed_files": [
+    "accel_spectrum.py",
+    "spectrum.csv",
+    "spectrum.png",
+    "verify_outputs.py",
+    "vibration.json"
+  ],
+  "node_counts": {
+    "run": 1,
+    "agent": 1,
+    "tool": 13,
+    "model": 10
+  },
+  "failed_steps": [],
+  "duration_seconds": 226.27,
+  "finished": "2026-11-20T11:29:42+00:00",
+  "sources": {
+    "name": "generated_sources.zip",
+    "bytes": 4593,
+    "files": [
+      "accel_spectrum.py",
+      "verify_outputs.py"
+    ],
+    "sha256": "0ec42030c6c883dcdc678fdb314d742cc16a221e0ff113fe8d517f0f4f0f767b"
+  },
+  "source_collection": "Read-only artifact reader of the completed acceptance session",
+  "answer_file": "answer.txt"
+}

@@ -311,3 +311,55 @@ async def test_reinspection_reads_terminal_run_without_submitting_again(tmp_path
     assert result["mode"] == "read_only_reinspection"
     assert result["original_duration_seconds"] == 120
     assert (tmp_path / scenario.key / "answer.txt").read_text() == old["answer"]
+
+
+@pytest.mark.asyncio
+async def test_followup_requires_validated_original_files_before_post(tmp_path):
+    import httpx
+
+    from evals.live import start_followup
+    from evals.scenarios import SCENARIOS
+
+    scenario = next(s for s in SCENARIOS if s.key == "feed_mix")
+    events = []
+    for key, parent, kind, label, status in [
+        ("r", None, "run", "original", "running"),
+        ("m", "r", "model", "model", "running"),
+        ("m", "r", "model", "model", "completed"),
+        ("e", "r", "tool", "execute", "running"),
+        ("e", "r", "tool", "execute", "completed"),
+        ("r", None, "run", "original", "failed"),
+    ]:
+        events.append(
+            {
+                "id": key,
+                "parent_id": parent,
+                "kind": kind,
+                "label": label,
+                "status": status,
+                "seq": len(events) + 1,
+            }
+        )
+
+    def endpoint(req):
+        assert req.method == "GET"
+        if req.url.path.endswith("/events"):
+            return httpx.Response(
+                200, json={"events": events, "cursor": 6, "has_more": False}
+            )
+        return httpx.Response(
+            200, json={"kg": {"corn": 0, "soy": 0, "lime": 0, "bran": 0}}
+        )
+
+    async with httpx.AsyncClient(
+        base_url="https://qa.test", transport=httpx.MockTransport(endpoint)
+    ) as client:
+        with pytest.raises(InvalidArtifact, match="mass balance"):
+            await start_followup(
+                client,
+                scenario,
+                "/api/sessions/s",
+                {"id": "r", "status": "failed"},
+                tmp_path,
+                {},
+            )

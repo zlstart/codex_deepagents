@@ -1,0 +1,67 @@
+{
+  "title": "三体三维轨道仿真",
+  "scenario": "three_body",
+  "started": "2026-11-20T11:48:59+00:00",
+  "passed": false,
+  "agent_status": "completed",
+  "artifacts": [],
+  "checks": [
+    "109 条生命周期事件，54 个节点，最大深度 3 层"
+  ],
+  "errors": [
+    "RuntimeError: GET /api/sessions/59134706ff0b4703a31f7b733a5bc34c/files returned 503: {\"detail\":\"工作区暂不可用，请检查 Docker 服务和沙箱镜像\"}"
+  ],
+  "session_id": "59134706ff0b4703a31f7b733a5bc34c",
+  "run_id": "75528b35d9014b3faa1d444286b8ae52",
+  "agent_error": null,
+  "node_counts": {
+    "run": 1,
+    "agent": 1,
+    "tool": 28,
+    "model": 24
+  },
+  "failed_steps": [
+    {
+      "seq": 253,
+      "id": "01a1f8cc-c453-72ae-b221-c9d7c7d4a04c",
+      "parent_id": "75528b35d9014b3faa1d444286b8ae52/agent",
+      "kind": "tool",
+      "label": "execute",
+      "status": "failed",
+      "created_at": "2026-11-20T11:52:14.771668+00:00",
+      "detail": "cd /workspace && ls -l && echo \"=== head ===\" && head -5 trajectory.csv && echo \"=== tail ===\" && tail -4 trajectory.csv && wc -l trajectory.csv && python verify.py\n\ntotal 216\n-rw-rw-rw- 1 worker worker    725 Nov 20 11:51 checks.json\n-rw-rw-rw- 1 worker worker    799 Nov 20 11:51 initial.json\n-rw-rw-rw- 1 worker worker 155853 Nov 20 11:51 orbits.png\n-rw------- 1 worker worker   2540 Nov 20 11:51 prepare_initial.py\n-rw-rw-rw- 1 worker worker  39111 Nov 20 11:51 trajectory.csv\n-rw------- 1 worker worker   6541 Nov 20 11:52 verify.py\n=== head ===\nt,body,x,y,z,vx,vy,vz\r\n0.0,1,-0.97000436,0.21051997632321184,0.12154376499999998,0.466203685,0.3744397059058036,0.21618286499999997\r\n0.0,2,0.97000436,-0.210519976323…"
+    },
+    {
+      "seq": 257,
+      "id": "01a1f8cc-e523-7380-a571-b94c289f494b",
+      "parent_id": "75528b35d9014b3faa1d444286b8ae52/agent",
+      "kind": "tool",
+      "label": "edit_file",
+      "status": "failed",
+      "created_at": "2026-11-20T11:52:20.213298+00:00",
+      "detail": "/workspace/verify.py\n\nError: String not found in file: '        name, ok in checks.items()'"
+    },
+    {
+      "seq": 357,
+      "id": "01a1f8ce-3b57-74d6-931b-329742fdc0ad",
+      "parent_id": "75528b35d9014b3faa1d444286b8ae52/agent",
+      "kind": "tool",
+      "label": "edit_file",
+      "status": "failed",
+      "created_at": "2026-11-20T11:53:47.959133+00:00",
+      "detail": "/workspace/plot_orbits.py\n\nError: String not found in file: 'from matplotlib import cm, colors\n\nCSV_PATH = \"/workspace/orbits.png\"'"
+    },
+    {
+      "seq": 422,
+      "id": "01a1f8cf-3c9e-746b-b706-45a24fdf3794",
+      "parent_id": "75528b35d9014b3faa1d444286b8ae52/agent",
+      "kind": "tool",
+      "label": "edit_file",
+      "status": "failed",
+      "created_at": "2026-11-20T11:54:53.621092+00:00",
+      "detail": "/opt/famsun/skills/AGENTS.md\n\nError editing file '/opt/famsun/skills/AGENTS.md': unexpected server response: Traceback (most recent call last):\n  File \"<string>\", line 48, in <module>\nOSError: [Errno 30] Read-only file system: '/opt/famsun/skills/AGENTS.md'"
+    }
+  ],
+  "duration_seconds": 418.12,
+  "finished": "2026-11-20T11:55:57+00:00"
+}

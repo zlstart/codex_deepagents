@@ -1,0 +1,30 @@
+{
+  "started": "2026-11-20T12:07:46.412Z",
+  "origin": "http://127.0.0.1:8080",
+  "pageErrors": [],
+  "externalRequests": [],
+  "runStatus": "执行中",
+  "meshes": 6,
+  "orbitChanged": true,
+  "assembledSHA256": "e877d291061983914630eda139fb943196631c9f96e3fa8ff1942d8e8b0e0483",
+  "explodedSHA256": "b2d0e19f25ce6c80341b3433c5b0870b3fda87208d8879863c7599cee409c1ec",
+  "refitChanged": true,
+  "authoredExplodedMeshes": 6,
+  "finished": "2026-11-20T12:08:04.356Z",
+  "passed": true,
+  "canvas": [
+    1137,
+    710
+  ],
+  "changedPixels": 330998,
+  "refittedPixelBounds": [
+    301,
+    216,
+    723,
+    533
+  ],
+  "sourceSHA256": {
+    "pellet.glb": "c01a66857493497a60b00220f1b3be0f5280b240a908b1f06d930d2e66b75eb3",
+    "exploded.glb": "893b2ea1ea9a59bb0efffb89da9c49835fad6cd71d9fcea0f93143e6797cbe90"
+  }
+}

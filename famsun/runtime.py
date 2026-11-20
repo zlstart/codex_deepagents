@@ -2,9 +2,19 @@
 
 import asyncio
 import logging
+from contextvars import ContextVar
 from dataclasses import dataclass
 
 log = logging.getLogger("famsun.runtime")
+run_deadline: ContextVar[float | None] = ContextVar("run_deadline", default=None)
+
+
+class BudgetClosed(RuntimeError):
+    public_message = "运行预算已触发收尾，任务未通过完整验收。"
+
+    def __init__(self, answer):
+        super().__init__(self.public_message)
+        self.answer = answer
 
 
 @dataclass
@@ -97,7 +107,9 @@ class Jobs:
             nonlocal box, start_task
             await asyncio.to_thread(self.store.start, rid)
             box = self.box(uid, sid)
-            async with asyncio.timeout(self.settings.run_timeout):
+            async with asyncio.timeout(self.settings.run_timeout) as timeout:
+                # Scoped to this execution Task, including startup and its child graph.
+                run_deadline.set(timeout.when())
                 # The worker thread may still be creating the container after
                 # cancellation. The supervisor waits for it before issuing stop.
                 start_task = asyncio.create_task(asyncio.to_thread(box.start))
@@ -119,6 +131,8 @@ class Jobs:
                 job.execution = asyncio.create_task(execute())
                 answer = await job.execution
                 state = "completed"
+        except BudgetClosed as exc:
+            answer, error = exc.answer, exc.public_message
         except TimeoutError:
             error = "任务超过执行时限，已停止"
         except asyncio.CancelledError:
