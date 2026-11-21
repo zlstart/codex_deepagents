@@ -3,7 +3,6 @@
 from pathlib import Path
 
 import aiosqlite
-from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 
 
 def session_thread_id(user_id: str, session_id: str) -> str:
@@ -26,6 +25,8 @@ async def remove_session_checkpoints(path: Path, user_id: str, session_id: str) 
             tables = {row[0] for row in await cursor.fetchall()}
         if not tables:
             return
+        from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+
         saver = AsyncSqliteSaver(conn)
         if tables != {"checkpoints", "writes"}:
             # Older/partially initialized files may only have one saver table.

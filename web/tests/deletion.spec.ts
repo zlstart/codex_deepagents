@@ -30,10 +30,14 @@ test("deletion keeps the other session, supports cancellation and rejects an act
   await expect(dialog.getByRole("alert")).toContainText("请先停止");
   await dialog.getByRole("button", { name: "取消" }).click();
   await stop.click();
-  await expect(stop).toBeHidden();
+  await expect(page.getByText("已停止本次执行。", { exact: true })).toBeVisible();
 
   await remove.click();
-  await confirm.click();
+  const [deleted] = await Promise.all([
+    page.waitForResponse((response) => response.request().method() === "DELETE"),
+    confirm.click(),
+  ]);
+  expect(deleted.status()).toBe(204);
   await expect(page.getByText("会话已删除。", { exact: true })).toBeVisible();
   await expect(remove).toHaveCount(0);
   await expect(page.getByRole("button", { name: "保留的会话", exact: true })).toHaveAttribute("aria-current", "page");

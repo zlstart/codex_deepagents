@@ -224,7 +224,7 @@ function Workspace({
         const rows = await request<Run[]>(scope(sid) + "/runs", {
           signal: c.signal,
         });
-        if (c.signal.aborted) return;
+        if (c.signal.aborted || activeSid.current !== sid) return;
         setRuns(rows);
         setHistoryError("");
         setHistoryLoaded(true);
@@ -233,7 +233,7 @@ function Workspace({
           rows.some((r) => running(r.status)) ? 1100 : 7500,
         );
       } catch (e) {
-        if (c.signal.aborted) return;
+        if (c.signal.aborted || activeSid.current !== sid) return;
         if (
           e instanceof HttpError &&
           e.status === 404 &&
