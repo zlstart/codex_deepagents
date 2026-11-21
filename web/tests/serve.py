@@ -75,7 +75,137 @@ class Workspace:
         return self.files[path][0]
 
 
+# Browser-controlled barriers make it possible to assert the visible UI before
+# a second chunk, a tool result, or the final answer exists in SQLite yet.
+GATES = {}
+
+
+async def streamed_report(run_id, emit, sandbox):
+    gates = GATES.setdefault(
+        run_id, {k: asyncio.Event() for k in ("delta", "tool", "finish")}
+    )
+
+    def node(key, parent, kind, label, status, payload=None):
+        return {
+            "id": key,
+            "parent_id": parent,
+            "kind": kind,
+            "label": label,
+            "status": status,
+            "payload": payload,
+        }
+
+    async def text(key, delta, status="running"):
+        await emit(
+            node(
+                key,
+                "main",
+                "model",
+                "模型响应",
+                status,
+                {"type": "model_text", "delta": delta},
+            )
+        )
+
+    try:
+        await emit(node("main", run_id, "agent", "FAMSUN Agent", "running"))
+        await emit(node("introduction", "main", "model", "模型响应", "running"))
+        await gates["delta"].wait()
+        await text("introduction", "先核对订单明细，")
+        await gates["tool"].wait()
+        await text("introduction", "再汇总每个渠道的销售额。")
+        await emit(node("introduction", "main", "model", "模型响应", "completed"))
+        await emit(node("review", "main", "subagent", "数据复核", "running"))
+        arguments = {"command": "python verify_orders.py orders.csv"}
+        await emit(
+            node(
+                "verify",
+                "review",
+                "tool",
+                "execute",
+                "running",
+                {"type": "tool", "arguments": arguments},
+            )
+        )
+        await emit(
+            node(
+                "verify",
+                "review",
+                "tool",
+                "execute",
+                "completed",
+                {
+                    "type": "tool",
+                    "arguments": arguments,
+                    "result": "3 orders, total=150",
+                    "exit_code": 0,
+                },
+            )
+        )
+        await emit(node("review", "main", "subagent", "数据复核", "completed"))
+        await gates["finish"].wait()
+        args = {
+            "file_path": "/workspace/sales-summary.md",
+            "content": "# 销售汇总\n合计 150 元。",
+        }
+        await emit(
+            node(
+                "report",
+                "main",
+                "tool",
+                "write_file",
+                "running",
+                {"type": "tool", "arguments": args},
+            )
+        )
+        sandbox.files["sales-summary.md"] = (args["content"].encode(), "text/markdown")
+        await emit(
+            node(
+                "report",
+                "main",
+                "tool",
+                "write_file",
+                "completed",
+                {"type": "tool", "arguments": args, "result": "Wrote sales-summary.md"},
+            )
+        )
+        answer = "三个渠道销售合计 150 元。"
+        await emit(node("final", "main", "model", "模型响应", "running"))
+        await text("final", answer)
+        await emit(node("final", "main", "model", "模型响应", "completed"))
+        await emit(node("main", run_id, "agent", "FAMSUN Agent", "completed"))
+        return answer
+    finally:
+        GATES.pop(run_id, None)
+
+
 async def runner(*, prompt, sandbox, emit, run_id, **kwargs):
+    if prompt == "检查失败的工具调用":
+        for index, name, code, output in [
+            (1, "missing.csv", 2, "missing.csv: not found"),
+            (2, "orders.csv", 0, "rows=4"),
+        ]:
+            item = {
+                "id": f"exec-{index}",
+                "parent_id": run_id,
+                "kind": "tool",
+                "label": "execute",
+            }
+            payload = {
+                "type": "tool",
+                "arguments": {"command": f"python check_csv.py {name}"},
+            }
+            await emit({**item, "status": "running", "payload": payload})
+            await emit(
+                {
+                    **item,
+                    "status": "failed" if code else "completed",
+                    "payload": {**payload, "result": output, "exit_code": code},
+                }
+            )
+        return "改用 orders.csv 后，确认有四行订单。"
+    if prompt == "分步汇总渠道订单":
+        return await streamed_report(run_id, emit, sandbox)
     if prompt == "预览已归档的制粒机验收模型" and os.environ.get("FAMSUN_E2E_MODEL"):
         path = Path(os.environ["FAMSUN_E2E_MODEL"])
         sandbox.files["pellet.glb"] = (path.read_bytes(), "model/gltf-binary")
@@ -122,6 +252,15 @@ async def runner(*, prompt, sandbox, emit, run_id, **kwargs):
         "model/gltf-binary",
     )
     sandbox.files["results.csv"] = (b'name,value\r\n"torque, Nm",10.2\r\n', "text/csv")
+    sandbox.files["summary.md"] = (
+        (
+            "# 周度摘要\n\n| 渠道 | 金额 |\n| --- | --- |\n| 门店 | 150 |\n\n"
+            "![外部配图](https://external.invalid/markdown.png)\n\n"
+            '<img src="https://external.invalid/raw.png">\n'
+            "<script>window.untrusted = true</script>\n"
+        ).encode(),
+        "text/markdown",
+    )
     sandbox.files["notes.html"] = (
         b"<script>window.untrusted = true</script>",
         "text/html",
@@ -156,4 +295,19 @@ if __name__ == "__main__":
                 sessions.setdefault((user_id, session_id), {})
             ),
         )
-        uvicorn.run(app, host="127.0.0.1", port=8176)
+
+        @app.post("/fixture/{run_id}/{phase}")
+        async def advance(run_id: str, phase: str):
+            gates = GATES.setdefault(
+                run_id, {k: asyncio.Event() for k in ("delta", "tool", "finish")}
+            )
+            gates[phase].set()
+            return {"phase": phase}
+
+        # The production app ends with a catch-all static mount. The fixture-only
+        # barriers must precede that mount to receive POST requests.
+        app.router.routes.insert(0, app.router.routes.pop())
+
+        uvicorn.run(
+            app, host="127.0.0.1", port=int(os.getenv("FAMSUN_FIXTURE_PORT", "8176"))
+        )

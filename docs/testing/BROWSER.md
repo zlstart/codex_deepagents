@@ -1,6 +1,20 @@
 # 浏览器验收
 
-测试采用 Chromium 156、Playwright 1.65 和 Node.js 24。桌面视口覆盖 1440 × 900 与 1488 × 1058，手机视口为 390 × 844。测试读取 Vite 生产构建，并通过同源 HTTP 访问 FastAPI 和临时 SQLite。测试进程使用独立账户。可重复回归中的模型响应、执行事件和沙箱文件来自测试夹具，以便稳定复现取消、失败和断线场景。真实模型与 Docker 任务另有逐次执行记录。
+测试采用 Chromium 156、Playwright 1.65 和 Node.js 24。桌面视口覆盖 1440 × 900、1440 × 960 与 1488 × 1058，手机视口为 390 × 844。测试读取 Vite 生产构建，并通过同源 HTTP 访问 FastAPI 和临时 SQLite。测试进程使用独立账户。可重复回归中的模型响应、执行事件和沙箱文件来自测试夹具，以便稳定复现取消、失败和断线场景。真实模型与 Docker 任务另有逐次执行记录。
+
+## 通用工作台与渠道销售小结
+
+本次完整 Playwright 套件通过 8 项，耗时 45.8 秒，含真实制粒机归档 GLB、旧执行记录及工具截断标记回归。流式测试按片段推进。首段文字到达时，下一段与最终答复尚未写入 SQLite。测试覆盖刷新后的重放、SSE 连接中断后的按游标补读、执行错误的退出码、子智能体工具的输入与返回，以及最终答复去重。历史执行记录沿用原先的无结构化字段格式。同一套件还验证了登录、手机导航、跨用户文件隔离、历史长标题的缩短，以及 Markdown 正文和原文切换。正文中的原始 HTML 与外部配图向测试域发送了 0 个请求。
+
+真实部署另外执行了四笔订单的渠道汇总。首次运行的 reviewer 检出占比的舍入差异，自身的正则检查也曾因未匹配 Markdown 中的总计行退出。后续检查和编辑将合作渠道占比修为 28.6%，补充了合计占比 100.1% 的舍入说明。首轮浏览器测试在下载链接出现时即读面板，早于异步文件正文。原始报告和首次观测均已保留。
+
+[首轮执行与断言记录](live-timeline-first.json) · [首轮生成的 Markdown](channel-summary-first.md)
+
+第二次通过浏览器提交同一题，真实模型和 Docker 沙箱在 115 条事件后返回完成。前 3 个公开文字分片位于游标 1071–1073，随后调用 `write_file`。共收到 70 个文字分片，10 次工具调用全部成功，reviewer 内部占 7 次。浏览器刷新后重放了正文，展开工具能看到输入与返回值。测试独立下载并解析了 4 笔 CSV 订单，核对 Markdown 中门店 1700 元、线上 800 元、合作 1000 元、合计 3500 元，并等待文件面板显示报告的标题、表格和合计。12 个检查均通过，浏览器脚本异常为 0。
+
+[运行中的正文与工具参数](../screenshots/live-trace-running.webp) · [完整时间线与嵌套复核](../screenshots/live-trace.webp) · [报告预览](../screenshots/live-report-preview.webp) · [真实模型记录](live-timeline.json) · [生成的 Markdown](channel-summary.md)
+
+## 历史制粒机浏览器验收
 
 | 用例 | 观察结果 |
 | --- | --- |
@@ -13,7 +27,7 @@
 
 Compose 部署中的制粒机任务已在浏览器内观察到官方文档 MCP、文件读取、沙箱命令和模型轮次的实时状态。顶层显示当前步骤，展开后可以检查每个节点。
 
-[实际运行中的执行树](../screenshots/live-trace.webp)
+[实际运行中的执行树](https://github.com/zlstart/codex_deepagents/blob/ecc5193bdd69ad4add0d539d77caefc527936669/docs/screenshots/live-trace.webp)
 
 ## 在线制粒机文件复测
 
@@ -40,8 +54,15 @@ npx playwright install --with-deps chromium
 npm test
 ```
 
+已有本地运行的部署、可注册账户以及配置好的模型时，从仓库根目录运行以下独立验收。脚本会注册一个临时测试账户并实际提交一次模型任务，退出时注销登录凭据。需要可使用 Pillow 的 Python 环境，将截图转换为 WebP。
+
+```sh
+FAMSUN_E2E_PYTHON="$PWD/.venv/bin/python" \
+  node web/scripts/live-timeline.mjs http://127.0.0.1:8080 /tmp/famsun-browser-evidence
+```
+
 可将 `FAMSUN_E2E_CHROMIUM` 设为系统 Chromium 的绝对路径。设置 `FAMSUN_E2E_MODEL` 为真实验收产生的制粒机 GLB 绝对路径，会额外测试该模型的网格数量、爆炸前后截图变化和外部请求。此项使用归档文件重放，截图保存在 `web/test-results`。
 
 界面对照检查涵盖侧栏与工作区布局、中文标题层级、两幅任务插图、文件入口、固定输入框和移动菜单。与生成设计稿对照后，修正了桌面制粒机插图过小和轨道图被裁切的问题。
 
-[桌面工作台](../screenshots/workspace.webp) · [登录页](../screenshots/login.webp) · [移动端](../screenshots/mobile.webp)
+[桌面工作台](https://github.com/zlstart/codex_deepagents/blob/ecc5193bdd69ad4add0d539d77caefc527936669/docs/screenshots/workspace.webp) · [登录页](https://github.com/zlstart/codex_deepagents/blob/ecc5193bdd69ad4add0d539d77caefc527936669/docs/screenshots/login.webp) · [移动端](https://github.com/zlstart/codex_deepagents/blob/ecc5193bdd69ad4add0d539d77caefc527936669/docs/screenshots/mobile.webp)

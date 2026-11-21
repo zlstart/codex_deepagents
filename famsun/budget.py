@@ -114,6 +114,6 @@ class BudgetReminder(AgentMiddleware):
             and not last.tool_calls
             and not last.invalid_tool_calls
         ):
-            self.summary = last.text.strip()[:8000]
+            self.summary = self.trace.answer(last)[:8000]
         self.summary = self.summary or EMPTY_SUMMARY
         return AIMessage(content=self.summary)

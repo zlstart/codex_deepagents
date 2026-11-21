@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { fileSize, fileURL, messageOf, request, scope } from "./api";
 import type { Artifact } from "./api";
+import { SafeMarkdown } from "./SafeMarkdown";
 const CsvPreview = lazy(() => import("./CsvPreview"));
 const ModelViewer = lazy(() => import("./ModelViewer"));
 const ext = (p: string) => p.toLowerCase().split(".").pop() || "";
@@ -21,12 +22,15 @@ function formatOf(f: Artifact) {
   const e = ext(f.name);
   if (e === "glb") return "model";
   if (e === "csv") return "csv";
+  if (
+    ["md", "markdown", "mdown"].includes(e) ||
+    /^(?:text\/(?:markdown|x-markdown))(?:;|$)/i.test(f.mime_type)
+  )
+    return "markdown";
   if (["png", "jpg", "jpeg", "webp", "gif", "avif"].includes(e)) return "image";
   if (
     [
       "txt",
-      "md",
-      "csv",
       "json",
       "py",
       "js",
@@ -49,7 +53,16 @@ function formatOf(f: Artifact) {
     return "text";
   return "other";
 }
-function ArtifactPreview({ sid, file }: { sid: string; file: Artifact }) {
+function ArtifactPreview({
+  sid,
+  file,
+  openFiles,
+}: {
+  sid: string;
+  file: Artifact;
+  openFiles: (path: string) => void;
+}) {
+  const [raw, setRaw] = useState(false);
   const [bytes, setBytes] = useState<ArrayBuffer | null>(null),
     [error, setError] = useState(""),
     [src, setSrc] = useState(""),
@@ -64,7 +77,7 @@ function ArtifactPreview({ sid, file }: { sid: string; file: Artifact }) {
     async function load() {
       if (kind === "other") return;
       const limit =
-        kind === "text"
+        kind === "text" || kind === "markdown"
           ? 512 * 1024
           : kind === "csv"
             ? 8 * 1024 * 1024
@@ -137,7 +150,40 @@ function ArtifactPreview({ sid, file }: { sid: string; file: Artifact }) {
         <CsvPreview buffer={bytes} />
       </Suspense>
     );
-  return <pre className="text-preview">{new TextDecoder().decode(bytes)}</pre>;
+  const text = new TextDecoder().decode(bytes);
+  if (kind === "markdown")
+    return (
+      <section className="markdown-preview">
+        <div
+          className="preview-switch"
+          role="group"
+          aria-label="Markdown 查看方式"
+        >
+          <button
+            type="button"
+            aria-pressed={!raw}
+            onClick={() => setRaw(false)}
+          >
+            正文
+          </button>
+          <button type="button" aria-pressed={raw} onClick={() => setRaw(true)}>
+            原文
+          </button>
+        </div>
+        {raw ? (
+          <pre className="text-preview">{text}</pre>
+        ) : (
+          <article className="answer markdown-document">
+            <SafeMarkdown
+              text={text}
+              openFiles={openFiles}
+              documentPath={file.path}
+            />
+          </article>
+        )}
+      </section>
+    );
+  return <pre className="text-preview">{text}</pre>;
 }
 export function Artifacts({
   sid,
@@ -240,7 +286,12 @@ export function Artifacts({
               <ArrowDownToLine size={18} />
             </a>
           </div>
-          <ArtifactPreview key={file.path} sid={sid!} file={file} />
+          <ArtifactPreview
+            key={file.path}
+            sid={sid!}
+            file={file}
+            openFiles={select}
+          />
         </div>
       ) : files.length ? (
         <div className="file-list">
@@ -249,6 +300,7 @@ export function Artifacts({
               model: Box,
               image: FileImage,
               text: FileText,
+              markdown: FileText,
               csv: FileText,
               other: File,
             }[formatOf(f)];

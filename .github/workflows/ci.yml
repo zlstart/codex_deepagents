@@ -26,4 +26,6 @@ jobs:
           FAMSUN_REQUIRE_DOCKER_TESTS: "true"
       - run: npx playwright install --with-deps chromium && npm test
         working-directory: web
+        env:
+          FAMSUN_E2E_MODEL: ${{ github.workspace }}/evals/results/compose-pellet-recovery/pellet_mill/pellet.glb
       - run: docker build -f deploy/service.Dockerfile -t famsun-agent:ci .

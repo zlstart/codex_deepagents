@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ArrowRight,
+  FilePenLine,
+  ListChecks,
+  Lightbulb,
   ArrowUp,
-  Box,
   ChevronRight,
   FolderClosed,
-  Layers3,
   LogOut,
   Menu,
   MessageSquare,
@@ -14,10 +14,8 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import Markdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { Auth } from "./Auth";
-import { Brand } from "./Brand";
+import { AgentMark, Brand } from "./Brand";
 import { Artifacts } from "./Artifacts";
 import TraceTree, { statusText } from "./TraceTree";
 import { HttpError, messageOf, post, request, running, scope } from "./api";
@@ -25,39 +23,57 @@ import type { Identity, Run, Session } from "./api";
 
 const starters = [
   {
-    title: "制粒机爆炸模型",
-    image: "mill",
-    prompt:
-      "构建一台环模制粒机的三维概念模型，包含机架、电机、传动箱、环模、压辊和罩壳。将零件命名并导出 GLB，以便在工作区预览爆炸图。",
+    title: "梳理一个想法",
+    icon: Lightbulb,
+    prompt: "帮我梳理一个想法。先问我几个关键问题，再整理成清晰的提纲。",
   },
   {
-    title: "三体轨道模拟",
-    image: "orbit",
+    title: "制定工作计划",
+    icon: ListChecks,
     prompt:
-      "建立引力三体的数值模型，模拟经典八字形轨道。生成轨迹图和 CSV，并报告能量守恒误差。",
+      "我想制定一份工作计划。请先了解目标、时间和资源，再帮我拆解行动步骤。",
+  },
+  {
+    title: "整理一份文档",
+    icon: FilePenLine,
+    prompt: "请帮我把接下来的材料整理成一份结构清晰、方便分享的文档。",
   },
 ];
-function Welcome({ choose }: { choose: (s: string) => void }) {
+
+function sessionTitle(text: string) {
+  const sentence =
+    text
+      .trim()
+      .split(/[。！？：!?\r\n]|\.(?=\s|$)|:(?=\s)/u)
+      .find((part) => part.trim())
+      ?.trim() || "新会话";
+  const chars = Array.from(sentence);
+  return chars.length > 28 ? chars.slice(0, 27).join("") + "…" : sentence;
+}
+
+function Welcome() {
   return (
     <div className="welcome">
-      <Box className="welcome-glyph" strokeWidth={1.1} size={46} />
-      <h1>今天，想构建什么？</h1>
-      <p>描述你的目标，智能体会在独立工作空间中执行并交付文件。</p>
-      <div className="starters">
-        {starters.map((s) => (
-          <button
-            key={s.image}
-            className={"starter starter-" + s.image}
-            onClick={() => choose(s.prompt)}
-          >
-            <span>
-              {s.title}
-              <ArrowRight size={19} />
-            </span>
-            <img src={"/images/" + s.image + ".webp"} alt="" />
-          </button>
-        ))}
-      </div>
+      <AgentMark large />
+      <h1>有什么可以帮你？</h1>
+      <p>从一个问题、一个想法，或一项待完成的工作开始。</p>
+    </div>
+  );
+}
+function Starters({ choose }: { choose: (s: string) => void }) {
+  return (
+    <div className="starters" aria-label="任务示例">
+      {starters.map(({ title, icon: Icon, prompt }) => (
+        <button
+          type="button"
+          key={title}
+          className="starter"
+          onClick={() => choose(prompt)}
+        >
+          <Icon size={16} />
+          {title}
+        </button>
+      ))}
     </div>
   );
 }
@@ -75,45 +91,9 @@ function RunEntry({
         <p>{run.prompt}</p>
       </div>
       <div className="speaker assistant-speaker">
-        <Box size={16} /> FAMSUN Agent
+        <AgentMark /> FAMSUN Agent
       </div>
-      <TraceTree run={run} />
-      {run.answer && (
-        <div className="answer">
-          <Markdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              img: ({ alt }) => (
-                <span className="inline-file">{alt || "图片"}</span>
-              ),
-              a: ({ href, children }) =>
-                href && /^https?:\/\//i.test(href) ? (
-                  <a href={href} target="_blank" rel="noreferrer noopener">
-                    {children}
-                  </a>
-                ) : (
-                  <button
-                    onClick={() =>
-                      openFiles(
-                        (href || String(children))
-                          .replace(
-                            /^(?:sandbox:)?\/?(?:workspace\/|mnt\/data\/)?/,
-                            "",
-                          )
-                          .replace(/^\.\//, ""),
-                      )
-                    }
-                    className="inline-file"
-                  >
-                    {children}
-                  </button>
-                ),
-            }}
-          >
-            {run.answer}
-          </Markdown>
-        </div>
-      )}
+      <TraceTree run={run} openFiles={openFiles} />
       {run.error && (
         <p role="alert" className="error">
           {run.error}
@@ -148,6 +128,7 @@ function Workspace({
     [reloading, setReloading] = useState(0);
   const input = useRef<HTMLTextAreaElement>(null),
     scroll = useRef<HTMLDivElement>(null),
+    content = useRef<HTMLDivElement>(null),
     nearEnd = useRef(true),
     activeSid = useRef<string | null>(null),
     submitLock = useRef(false);
@@ -229,9 +210,17 @@ function Workspace({
   }, [sid, reloading]);
   const runSignature = runs.map((r) => r.id + ":" + r.status).join(",");
   useEffect(() => {
-    if (nearEnd.current && scroll.current)
-      scroll.current.scrollTop = scroll.current.scrollHeight;
-  }, [runSignature]);
+    const viewport = scroll.current;
+    const conversation = content.current;
+    if (!viewport || !conversation) return;
+    const follow = () => {
+      if (nearEnd.current) viewport.scrollTop = viewport.scrollHeight;
+    };
+    const observer = new ResizeObserver(follow);
+    observer.observe(conversation);
+    follow();
+    return () => observer.disconnect();
+  }, [sid]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
@@ -278,7 +267,7 @@ function Workspace({
     setError("");
     let target = sid;
     try {
-      if (!target) target = (await createSession(text.slice(0, 55))).id;
+      if (!target) target = (await createSession(sessionTitle(text))).id;
       let pending = pendingSends.current.get(target);
       if (!pending || pending.prompt !== text) {
         const key = Array.from(
@@ -351,6 +340,7 @@ function Workspace({
       setError(messageOf(e));
     }
   };
+  const empty = !runs.length && (!sid || historyLoaded);
   const blocked = busy || !sessionsLoaded || Boolean(sid && !historyLoaded);
   return (
     <div className={"studio" + (files ? " with-files" : "")}>
@@ -389,7 +379,7 @@ function Workspace({
             <button
               className={"session-item" + (s.id === sid ? " selected" : "")}
               key={s.id}
-              title={s.title}
+              title={sessionTitle(s.title)}
               aria-current={s.id === sid ? "page" : undefined}
               disabled={busy}
               onClick={() => {
@@ -398,7 +388,7 @@ function Workspace({
               }}
             >
               <MessageSquare size={15} />
-              <span>{s.title}</span>
+              <span>{sessionTitle(s.title)}</span>
             </button>
           ))}
         </nav>
@@ -433,12 +423,14 @@ function Workspace({
           >
             <Menu size={19} />
           </button>
-          <Layers3 size={19} className="header-glyph" />
-          <strong>工作空间</strong>
+          <AgentMark />
+          <strong>FAMSUN Agent</strong>
           {current && (
             <>
               <ChevronRight size={14} className="crumb-arrow" />
-              <span className="crumb">{current.title}</span>
+              <span className="crumb" title={sessionTitle(current.title)}>
+                {sessionTitle(current.title)}
+              </span>
             </>
           )}
           <button
@@ -453,7 +445,7 @@ function Workspace({
             文件
           </button>
         </header>
-        <main className="desk-main">
+        <main className={"desk-main" + (empty ? " empty" : "")}>
           <div
             className="conversation-scroll"
             ref={scroll}
@@ -466,9 +458,7 @@ function Workspace({
                   100;
             }}
           >
-            <div
-              className={"conversation" + (!runs.length ? " untouched" : "")}
-            >
+            <div ref={content} className="conversation">
               <div aria-live="polite" className="sr-only">
                 {active
                   ? "任务执行中"
@@ -501,12 +491,7 @@ function Workspace({
               ) : sid && !historyLoaded ? (
                 <div className="loading-note">正在读取会话…</div>
               ) : (
-                <Welcome
-                  choose={(s) => {
-                    edit(s);
-                    input.current?.focus();
-                  }}
-                />
+                <Welcome />
               )}
             </div>
           </div>
@@ -536,7 +521,7 @@ function Workspace({
                   maxLength={16000}
                   value={draft}
                   onChange={(e) => edit(e.target.value)}
-                  placeholder="描述你的目标…"
+                  placeholder="描述你想完成的事…"
                   onKeyDown={(e) => {
                     if (
                       e.key === "Enter" &&
@@ -573,6 +558,14 @@ function Workspace({
                   )}
                 </div>
               </form>
+              {empty && (
+                <Starters
+                  choose={(value) => {
+                    edit(value);
+                    input.current?.focus();
+                  }}
+                />
+              )}
             </div>
           </div>
         </main>

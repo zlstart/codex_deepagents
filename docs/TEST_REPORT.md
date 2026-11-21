@@ -1,5 +1,35 @@
 # FAMSUN Agent 部署与验收
 
+## 2026 年 11 月 21 日 · 通用工作台与流式执行
+
+本次在同一台测试机上更新 Docker Compose，保留已有账户、SQLite 历史记录和工作区卷。使用真实 OpenAI 兼容模型 `qwen3.8-flash`，浏览器通过与产品相同的 HTTP 和 SSE 接口访问服务。
+
+| 验收对象 | 实测结果 |
+| --- | --- |
+| 品牌与布局 | 对照提供的 2048 × 953 门户图核对左侧立体主图、右侧浮起登录卡、右上字标与留白，另在 390 × 844 手机上检查登录和输入。工作台使用通用任务入口。[桌面登录](screenshots/login.webp) · [工作台](screenshots/workspace.webp) · [手机登录](screenshots/login-mobile.webp) |
+| 五项通用任务 | 实际完成直接问答、文本备忘、CSV 汇总、Markdown 行动清单和独立复核。首轮 4/5 满足全部断言。备忘任务先并发写入和读取同一文件，首次读取失败，模型自行恢复。补充读写顺序指令后按原题复测，1 次写入和 1 次读取成功，下载文件的内容与 SHA-256 符合要求。五项最终记录合计 101 条事件，SSE 与 SQLite 重播逐条一致，文档 MCP 调用数为 0。[逐次结果、诊断和产物校验](testing/general-workspace.json) |
+| 浏览器实际运行 | 以普通账户提交四笔渠道订单。执行完成前页面已显示模型的汇总计划。写文件卡片可分别展开路径、CSV 内容和工具返回，复核分支可继续展开。复测记录 115 条事件、70 个公开文本分片，10 次工具执行全部成功，其中 7 次位于复核子智能体下。在面板内打开模型生成的 Markdown，并独立核对 4 笔订单、三项渠道金额与 3,500 元总额。12 项检查通过。首轮的工具错误、模型自行修正与异步预览测试的修订也已保留。[过程截图](screenshots/live-trace-running.webp) · [嵌套执行](screenshots/live-trace.webp) · [报告预览](screenshots/live-report-preview.webp) · [两轮实测](testing/BROWSER.md) |
+| 官方文档 MCP | 在单独开启集成的实例中，第一轮按要求查询 Deep Agents 文档并保存链接，第二轮仅用 `read_file` 读回文件、从对话恢复校验码。两轮均完成，工具全部成功。[两轮真实记录](testing/on-demand-docs.json) |
+| 流式传输 | TCP 测试在任务结束前读取首段，断开连接后再写入事件，携带最后序号重连，逐项比对回放与分页结果。另验同源与账户归属、注销撤销、迁移已有 SQLite 库、超大预览和终态事件。浏览器覆盖 SSE 和断流后的分页补读。[传输测试](../tests/test_api_stream.py) · [渲染规则与参考源码](EXECUTION.md) |
+
+Python 最终整套回归通过 **102/102**，启用 `FAMSUN_REQUIRE_DOCKER_TESTS=true`，耗时 117.63 秒。覆盖真实 Docker 工作区、SQLite 迁移、租户隔离、流式模型回调、非流式兼容端点、工具返回与失败、预算收尾及会话恢复。
+
+Chromium 自动化套件在桌面和手机视口通过全部 8 项测试（45.8 秒），包含断线、取消、重放、工具失败、文件隔离、Markdown 安全渲染及真实归档 GLB 的旋转和爆炸预览。[浏览器验收](testing/BROWSER.md)
+
+官方字标取自丰尚网站，登录主图按提供的门户参考重新制作。[字标来源](https://www.famsun.com/uploads/upload/images/20260728/bc6496aac4a5cdb5da5c90c494d9c2b7.svg)
+
+测试主机仅提供本机 HTTP 入口，rootless Docker 缺少 cgroup 委派。测试开启了受限主机例外。真实生产机的 HTTPS 入口、CPU/内存/PID 限制、存储配额及备份恢复仍需在目标环境验收。[运行手册](OPERATIONS.md) · [本次部署预检](testing/workspace-preflight.json)
+
+在开启注册的测试部署上，可将以下验收结果写到新的证据目录。浏览器任务另需安装 Playwright Chromium，或通过 `FAMSUN_E2E_CHROMIUM` 指定已安装的 Chromium。
+
+```sh
+uv run --locked --group eval python -m evals.workspace_smoke \
+  --base-url http://127.0.0.1:8080 --output var/evidence/current/general.json
+(cd web && node scripts/live-timeline.mjs http://127.0.0.1:8080 ../var/evidence/current)
+```
+
+## 2026 年 11 月 20 日 · 工程场景与隔离基线
+
 测试日期为 2026 年 11 月 20 日。模型调用使用用户配置的 OpenAI 兼容服务 `qwen3.8-flash`，工作区运算在真实 Docker 容器中执行。最终 Compose 实例绑定测试主机的 `127.0.0.1:8080`。浏览器、FastAPI 控制面和官方文档 MCP 均参与了验收。
 
 ## 工程任务
@@ -48,5 +78,6 @@ uv sync --locked --group eval
 FAMSUN_REQUIRE_DOCKER_TESTS=true uv run --locked --group eval pytest -q
 (cd web && npm ci && npm run build && npx playwright install chromium && npm test)
 uv run --locked --group eval python -m evals.live --output var/evidence/new-run
+# MCP 专项验收使用显式开启 FAMSUN_MCP_ENABLED 的测试服务
 uv run --locked --group eval python -m evals.harness_live --base-url http://127.0.0.1:8000 --output var/evidence/mcp.json
 ```

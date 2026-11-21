@@ -1,16 +1,18 @@
+import { Sparkle } from "lucide-react";
+
 export function Brand() {
   return (
-    <div className="brand" aria-label="FAMSUN Agent Studio">
-      <svg viewBox="0 0 40 49" aria-hidden="true" className="brand-mark">
-        <path
-          fill="#086344"
-          d="M2 15 38 1v9L12 20zM2 18l9 4v9l-9-4zm11 4 16-6v9l-16 7zM2 30l9 4v9l-9 4z"
-        />
-      </svg>
-      <span>
-        <b>FAMSUN</b>
-        <small>AGENT STUDIO</small>
-      </span>
+    <div className="brand" role="img" aria-label="FAMSUN 丰尚">
+      <img src="/images/famsun-brand.svg" alt="" width="128" height="22" />
+      <span aria-hidden="true">丰尚</span>
     </div>
+  );
+}
+
+export function AgentMark({ large = false }: { large?: boolean }) {
+  return (
+    <span className={"agent-mark" + (large ? " large" : "")} aria-hidden="true">
+      <Sparkle size={large ? 30 : 17} strokeWidth={1.8} />
+    </span>
   );
 }

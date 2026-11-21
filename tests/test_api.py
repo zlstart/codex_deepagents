@@ -435,3 +435,31 @@ def test_http_session_artifacts_on_real_docker_volumes(rig):
                     user_id=info["id"], session_id=sid.rsplit("/", 1)[-1], settings=cfg
                 )
                 cleanup.delete()
+
+
+@pytest.mark.parametrize(
+    ("prompt", "expected"),
+    [
+        ("整理本月交付情况。请列出待办、负责人和时间。", "整理本月交付情况"),
+        ("Review v2.9 release. Include the attached changes.", "Review v2.9 release"),
+        (
+            "Compare https://example.org/v2.9: details follow",
+            "Compare https://example.org…",
+        ),
+        ("整理物料：详细原料与用量如下", "整理物料"),
+        ("组装" * 20, "组装" * 13 + "组…"),
+    ],
+)
+def test_first_api_run_gives_untitled_session_a_short_title(tmp_path, prompt, expected):
+    from famsun.store import Store
+
+    store = Store(tmp_path / "titles.sqlite3")
+    store.initialize()
+    uid = store.create_user("writer", "unused")["id"]
+    sid = store.create_session(uid, "新会话")["id"]
+    rid = store.new_run(uid, sid, prompt, 1)["id"]
+    assert store.own_session(uid, sid)["title"] == expected
+    store.finish(rid, "completed", "done")
+    store.cleared(sid)
+    store.new_run(uid, sid, "keep our title", 1)
+    assert store.own_session(uid, sid)["title"] == expected

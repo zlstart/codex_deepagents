@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import fcntl
+import json
 import mimetypes
 import secrets
 import time
@@ -14,14 +15,14 @@ from uuid import uuid4
 
 from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 from . import auth
 from .config import Settings
 from .runtime import Jobs
-from .store import Busy, Conflict, Missing, Store
+from .store import ACTIVE, Busy, Conflict, Missing, SessionRevoked, Store
 
 
 class Payload(BaseModel):
@@ -43,6 +44,46 @@ class RunInput(Payload):
     prompt: str = Field(min_length=1, max_length=32000)
 
 
+SSE_HEARTBEAT_SECONDS = 10
+
+
+def same_origin(request, public_origin):
+    origin = request.headers.get("origin")
+    if request.headers.get("sec-fetch-site") in {"cross-site", "same-site"}:
+        return False
+    if not origin:
+        return True
+    try:
+        source = urlsplit(origin)
+        expected = urlsplit(public_origin or str(request.base_url))
+        if (
+            source.scheme not in {"http", "https"}
+            or not source.hostname
+            or source.username
+            or source.password
+            or source.path
+            or source.query
+            or source.fragment
+        ):
+            return False
+        default_port = 443 if expected.scheme == "https" else 80
+        return (source.scheme, source.hostname, source.port or default_port) == (
+            expected.scheme,
+            expected.hostname,
+            expected.port or default_port,
+        )
+    except ValueError:
+        return False
+
+
+def event_frame(kind, value, seq=None):
+    # Compact JSON escapes embedded newlines, so user content stays on the
+    # data line even when a prompt or tool result contains SSE field names.
+    data = json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+    identifier = f"id: {seq}\n" if seq is not None else ""
+    return f"{identifier}event: {kind}\ndata: {data}\n\n"
+
+
 class RequestGuard:
     """Reject cross-origin writes and bound request bodies before JSON parsing."""
 
@@ -54,20 +95,7 @@ class RequestGuard:
         if scope["type"] != "http" or scope["method"] in {"GET", "HEAD", "OPTIONS"}:
             return await self.app(scope, receive, send)
         request = Request(scope)
-        origin = request.headers.get("origin")
-        if origin:
-            try:
-                source = urlsplit(origin)
-                expected = urlsplit(self.public_origin or str(request.base_url))
-                origin_matches = (source.scheme, source.netloc.lower()) == (
-                    expected.scheme,
-                    expected.netloc.lower(),
-                )
-            except ValueError:
-                origin_matches = False
-        else:
-            origin_matches = True
-        if not origin_matches or request.headers.get("sec-fetch-site") == "cross-site":
+        if not same_origin(request, self.public_origin):
             return await JSONResponse({"detail": "请求来源不匹配"}, 403)(
                 scope, receive, send
             )
@@ -158,7 +186,7 @@ def create_app(settings=None, *, runner=None, sandbox_factory=None):
         response.headers["Referrer-Policy"] = "same-origin"
         response.headers["X-Frame-Options"] = "SAMEORIGIN"
         if request.url.path.startswith("/api/"):
-            response.headers["Cache-Control"] = "private, no-store"
+            response.headers.setdefault("Cache-Control", "private, no-store")
         if cfg.secure_cookies and (public_origin or str(request.base_url)).startswith(
             "https://"
         ):
@@ -326,6 +354,70 @@ def create_app(settings=None, *, runner=None, sandbox_factory=None):
         sid: str, rid: str, after: int = Query(0, ge=0, le=2**63 - 1), user=authorized
     ):
         return store.events(user["id"], sid, rid, after)
+
+    @app.get("/api/sessions/{sid}/runs/{rid}/stream")
+    async def stream(
+        sid: str,
+        rid: str,
+        request: Request,
+        after: int = Query(0, ge=0, le=2**63 - 1),
+        user=authorized,
+    ):
+        if not same_origin(request, public_origin):
+            raise HTTPException(403, "请求来源不匹配")
+        last = request.headers.get("last-event-id", "")
+        if last and (
+            len(last) > 19
+            or not last.isascii()
+            or not last.isdecimal()
+            or int(last) > 2**63 - 1
+        ):
+            raise HTTPException(422, "无效事件游标")
+        cursor = max(after, int(last or 0))
+        uid = user["id"]
+        token = auth.token_digest(request.cookies[auth.COOKIE])
+        # Fail with an ordinary HTTP status before committing the SSE headers.
+        await asyncio.to_thread(store.run, uid, sid, rid)
+
+        async def frames():
+            nonlocal cursor
+            with jobs.subscribe(rid) as changed:
+                yield ": connected\nretry: 1500\n\n"
+                while not await request.is_disconnected():
+                    # Clear before the snapshot: a writer racing the query sets
+                    # the signal after its commit, which cannot be lost at wait().
+                    changed.clear()
+                    try:
+                        page = await asyncio.to_thread(
+                            store.events, uid, sid, rid, cursor, token_digest=token
+                        )
+                    except (SessionRevoked, Missing):
+                        return
+                    for event in page["events"]:
+                        yield event_frame("activity", event, event["seq"])
+                    cursor = page["cursor"]
+                    if page["has_more"]:
+                        continue
+                    if page["status"] not in ACTIVE:
+                        yield event_frame(
+                            "end", {"cursor": cursor, "status": page["status"]}
+                        )
+                        return
+                    try:
+                        await asyncio.wait_for(
+                            changed.wait(), timeout=SSE_HEARTBEAT_SECONDS
+                        )
+                    except TimeoutError:
+                        yield ": heartbeat\n\n"
+
+        return StreamingResponse(
+            frames(),
+            media_type="text/event-stream",
+            headers={
+                "X-Accel-Buffering": "no",
+                "Cache-Control": "private, no-store, no-transform",
+            },
+        )
 
     @app.post("/api/sessions/{sid}/runs/{rid}/cancel")
     async def cancel(sid: str, rid: str, user=authorized):

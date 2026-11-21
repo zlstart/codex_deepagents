@@ -119,7 +119,9 @@ async def main(url, output):
             "both_runs_completed": all(
                 t["status"] == "completed" for t in report["turns"]
             ),
-            "official_mcp_discovered": used(first, "LangChain 文档 MCP"),
+            "second_turn_skips_docs": not any(
+                n["label"] == "search_docs_by_lang_chain" for n in second["nodes"]
+            ),
             "official_search_tool_called": used(first, "search_docs_by_lang_chain"),
             "private_marker_recalled": marker in (second["answer"] or ""),
             "old_file_read_in_new_run": used(second, "read_file"),

@@ -1,0 +1,145 @@
+{
+  "started_utc": "2026-11-21T10:06:21.817Z",
+  "checks": {
+    "event_stream": true,
+    "visible_before_terminal": true,
+    "captured_public_fragments": true,
+    "nested_tools": true,
+    "tool_details": true,
+    "terminal_completed": true,
+    "replayed_public_text": true,
+    "verified_input_orders": true,
+    "checked_amounts": true,
+    "artifact_in_ui": false,
+    "no_page_errors": true
+  },
+  "errors": [
+    "artifact_in_ui"
+  ],
+  "session_id": "88d1a76ce04e47dc9c9338078b6e2928",
+  "run_id": "a2a5958de49c4b5aa68563ed0050430c",
+  "prompt": "帮我做一份渠道销售小结。订单如下（渠道、销售额，元）：门店 1200，线上 800，门店 500，合作 1000。先用一句话告诉我你准备如何汇总，然后动手。将明细写入 orders.csv，把各渠道金额和总额写入 channel-summary.md。请让 reviewer 子智能体核对一次合计数，再用中文简短告诉我结果。",
+  "live_capture_cursor": 910,
+  "status": "completed",
+  "service_error": null,
+  "event_count": 100,
+  "public_fragments": 53,
+  "intermediate_visible_text": [
+    "**结果：已完成，合计数核对",
+    "文件已写好，现在请 reviewer 子智能体独立核对合计数。",
+    "我先按渠道分组求和（门店 1200+500、线上 800、合作 1000），再"
+  ],
+  "tools": [
+    {
+      "name": "write_file",
+      "status": "completed",
+      "argument_keys": [
+        "file_path",
+        "content"
+      ],
+      "has_result": true
+    },
+    {
+      "name": "write_file",
+      "status": "completed",
+      "argument_keys": [
+        "file_path",
+        "content"
+      ],
+      "has_result": true
+    },
+    {
+      "name": "ls",
+      "status": "completed",
+      "argument_keys": [
+        "path"
+      ],
+      "has_result": true
+    },
+    {
+      "name": "read_file",
+      "status": "completed",
+      "argument_keys": [
+        "file_path"
+      ],
+      "has_result": true
+    },
+    {
+      "name": "read_file",
+      "status": "completed",
+      "argument_keys": [
+        "file_path"
+      ],
+      "has_result": true
+    },
+    {
+      "name": "execute",
+      "status": "failed",
+      "argument_keys": [
+        "command"
+      ],
+      "has_result": true,
+      "exit_code": 1
+    },
+    {
+      "name": "execute",
+      "status": "completed",
+      "argument_keys": [
+        "command"
+      ],
+      "has_result": true,
+      "exit_code": 0
+    },
+    {
+      "name": "edit_file",
+      "status": "completed",
+      "argument_keys": [
+        "file_path",
+        "old_string",
+        "new_string"
+      ],
+      "has_result": true
+    },
+    {
+      "name": "edit_file",
+      "status": "completed",
+      "argument_keys": [
+        "new_string",
+        "old_string",
+        "file_path"
+      ],
+      "has_result": true
+    },
+    {
+      "name": "execute",
+      "status": "completed",
+      "argument_keys": [
+        "command"
+      ],
+      "has_result": true,
+      "exit_code": 0
+    }
+  ],
+  "nested_tool_count": 5,
+  "browser_exceptions": [],
+  "files": [
+    {
+      "path": "channel-summary.md",
+      "size": 804
+    },
+    {
+      "path": "orders.csv",
+      "size": 83
+    }
+  ],
+  "report_sha256": "264983b56ded17b742c946df00b624d4d195a6902f60f2fad29a32472008163c",
+  "finished_utc": "2026-11-21T10:08:00.405Z",
+  "reviewer_recovery": {
+    "failed_tool_seq": 959,
+    "exit_code": 1,
+    "result_excerpt": "AttributeError: 'NoneType' object has no attribute 'group'",
+    "finding": "合作渠道 1000 / 3500 = 28.5714…%，首次草稿取 28.5%。复核命令另因正则未匹配总计行而中断。",
+    "resolved": "后续命令和两次文件编辑将占比改为 28.6%，补充舍入说明。最终命令退出码 0，明细和报告金额一致。"
+  },
+  "browser_observation": "旧断言在下载链接出现时立即读取面板文本，未等待异步加载的 Markdown 正文。"
+}

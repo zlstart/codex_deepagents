@@ -1,8 +1,10 @@
 # FAMSUN Agent
 
-面向工程任务的多用户工作台。用户可以在会话中提出任务，展开每一步的模型响应、工具和子智能体，随后在同一页面查看数据、图片和三维模型。GLB 查看器支持旋转、缩放和零件分离。服务端使用 LangChain Deep Agents、FastAPI 和 SQLite，模型通过 OpenAI 兼容的 **Chat Completions** 接口调用。
+丰尚的通用智能体工作台。你可以直接提问，也可以交给它一项需要查文件、运行程序或协作完成的任务。在同一个会话里读到智能体的实时回复、展开工具调用、查看子智能体的工作，并预览或下载交付文件。
 
-![FAMSUN 工作台](docs/screenshots/workspace.webp)
+![FAMSUN Agent 工作台](docs/screenshots/workspace.webp)
+
+[登录页](docs/screenshots/login.webp) · [运行中的工具参数和结果](docs/screenshots/live-trace-running.webp) · [展开子智能体](docs/screenshots/live-trace.webp) · [执行视图与参考实现](docs/EXECUTION.md)
 
 ## 部署
 
@@ -19,23 +21,17 @@ docker compose exec app python -m famsun.manage create-user engineer
 docker compose exec app python -m famsun.doctor --strict --live-model
 ```
 
-`doctor` 检查 SQLite、Docker、沙箱镜像和官方 MCP。加上 `--live-model` 会产生一次实际的含工具回传的模型调用。监控可轮询 `GET /api/health`。专用 Docker socket 仅挂在服务端容器，生产部署细节见 [运行手册](docs/OPERATIONS.md)。
+`doctor` 检查 SQLite、Docker 和沙箱镜像。开启文档集成时也检查 MCP。加上 `--live-model` 会产生一次实际的含工具回传的模型调用。监控可轮询 `GET /api/health`。专用 Docker socket 仅挂在服务端容器，生产部署细节见 [运行手册](docs/OPERATIONS.md)。
 
 **本机 HTTP 体验**可将 `FAMSUN_PUBLIC_ORIGIN` 配为 `http://127.0.0.1:8000`，并设置 `FAMSUN_SECURE_COOKIES=false`。如需通过页面创建账户，再设置 `FAMSUN_ALLOW_SIGNUP=true`。容器配置变化后用 `docker compose up -d app` 更新。
 
 ## 使用
 
-- 登录后新建会话，描述产物及验收方式，例如“构建环模制粒机的装配 GLB，保留独立命名零件，生成爆炸图并检查各零件几何不变”。
-- 展开运行，查看模型何时调用 `execute`、`read_file` 或工程子智能体。页面刷新后可以从 SQLite 恢复会话和事件。进行中的任务可以取消。
-- 从工作区面板打开生成的图片、文本数据或独立 GLB；其他格式可以下载。文件属于当前用户的当前会话。后续对话继续使用相同的工作区、已安装的包和 LangGraph 线程。
-- 科学仿真技能可读取任务指定的质量、初值和积分区间，求解 N 体轨道并输出 CSV、图像和守恒误差。机械装配技能可从零件清单构造命名网格，生成装配和爆炸 GLB；模型负责确定零件、尺寸、姿态及拆卸方向。
-- 工程技能以标准 `SKILL.md` 编写，位置为 [famsun/skills](famsun/skills)。新增技能后重新构建沙箱镜像。官方文档 MCP 使用 `https://docs.langchain.com/mcp`，只向模型注册文档检索工具；文档服务故障会记录在轨迹中。
-
-## 模型与验收样例
-
-[五项真实运行的报告和可下载产物](evals/results/README.md)包含三体轨道数据、制粒机装配与爆炸 GLB、振动频谱、配方及停机归因。另附一份参数化建模的[制粒机工程展示样例](examples/pellet_press/README.md)，带可编辑源码、检修门、穿孔环模和成对压辊。
-
-![制粒机工程示例的装配与爆炸视图](examples/pellet_press/preview.png)
+- 登录后新建会话，直接输入需求。需要交付文件时，可以指定文件名、格式及验收方式。
+- 时间线按执行顺序呈现公开的模型回复、工具调用和委派任务。点开工具查看参数、结果和适用的退出码，点开子智能体继续查看内部步骤。进行中的任务可以停止，刷新后可接着阅读。
+- 工作区面板支持图片、文本、Markdown、CSV 和 GLB 预览，以及文件下载。每个用户的每个会话有独立的 Docker 工作区和 Python 安装环境，后续对话可以继续使用。
+- 技能按 Deep Agents 的 `SKILL.md` 格式组织，新增部署技能后重建沙箱镜像。[内置技能](famsun/skills)
+- 官方 LangChain 文档查询默认关闭。设置 `FAMSUN_MCP_ENABLED=true` 后，模型可在遇到相关 API 问题时选择查询，实际调用时才连接 `https://docs.langchain.com/mcp`。
 
 ## 架构
 
@@ -46,8 +42,8 @@ flowchart LR
     API --> Graph[Deep Agents + LangGraph]
     Graph --> Checkpoint[(SQLite 检查点)]
     Graph --> Model[兼容模型]
-    Graph --> Docs[LangChain 文档 MCP]
-    Graph --> Specialists[工程 / 复核子智能体]
+    Graph -. 按需查询 .-> Docs[LangChain 文档 MCP]
+    Graph --> Specialists[子智能体]
     Graph --> Box[每会话 Docker 沙箱]
     Specialists --> Box
     Box --> Vol[工作区卷 + Python 环境卷]
@@ -75,4 +71,4 @@ uv run --locked --group eval python -m evals.live \
   --base-url http://127.0.0.1:8000 --output var/evidence/release-01 --parallel 2
 ```
 
-本次工作台、模型和 Docker 实测的范围与结果见 [验收报告](docs/TEST_REPORT.md)。
+浏览器、模型和 Docker 的实测范围见[验收报告](docs/TEST_REPORT.md)。工程场景另有五项独立校验，包含三体轨道和制粒机爆炸图。[工程验收记录与产物](evals/results/README.md)

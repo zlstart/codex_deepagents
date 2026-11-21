@@ -75,7 +75,7 @@ class ScriptedChat(BaseChatModel):
             )
         elif human.content == "delegate both":
             assert "mechanical-assembly" in str(messages[0].content)
-            assert "FAMSUN engineering conventions" in str(messages[0].content)
+            assert "FAMSUN workspace conventions" in str(messages[0].content)
             reply = AIMessage(
                 content="",
                 tool_calls=[
@@ -217,10 +217,12 @@ async def test_cancel_during_tool_and_continue_thread(tmp_path, monkeypatch):
         checkpoint_path=tmp_path / "state.sqlite", mcp_enabled=True
     )
 
-    async def unavailable():
-        raise TimeoutError()
+    from famsun import docs_mcp
 
-    monkeypatch.setattr(harness, "documentation_tools", unavailable)
+    def unexpected_connection():
+        pytest.fail("An ordinary run must not connect to the documentation service")
+
+    monkeypatch.setattr(docs_mcp, "docs_client", unexpected_connection)
     backend = FilesystemBackend(root_dir=tmp_path / "session")
 
     async def turn(prompt):
@@ -243,9 +245,7 @@ async def test_cancel_during_tool_and_continue_thread(tmp_path, monkeypatch):
     assert {e["status"] for e in terminal.values() if e["label"] == "read_file"} == {
         "cancelled"
     }
-    assert {
-        e["status"] for e in terminal.values() if e["label"] == "LangChain 文档 MCP"
-    } == {"failed"}
+    assert not any(e["label"] == "search_docs_by_lang_chain" for e in events)
     assert all(e["status"] != "running" for e in terminal.values())
     assert await turn("check recovery") == "recovered"
 

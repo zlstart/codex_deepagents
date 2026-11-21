@@ -36,3 +36,5 @@ uv run --locked --group eval python -m evals.live \
 ```
 
 `--followup <result.json>` 验收同一会话的恢复。该模式要求原运行终态为失败、原始执行树完整、全部指定产物已经通过独立校验；在这些条件满足时才提交一次简短的文件检查与总结请求。恢复报告保留原运行 ID、跟进运行 ID、两轮轨迹与 SHA-256，并确认产物保持一致。该结果单独计为多轮恢复。
+
+单独验证官方文档集成时，在测试实例显式开启 `FAMSUN_MCP_ENABLED=true`，运行 `python -m evals.harness_live --base-url http://127.0.0.1:8000 --output var/evals/docs.json`。第一轮要求通过 MCP 查找官方资料，第二轮仅使用已保存的会话和文件。普通验收任务使用默认配置即可。

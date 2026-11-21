@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 
@@ -32,7 +33,25 @@ class Jobs:
         self.runner = runner
         self.sandbox_factory = sandbox_factory
         self.tasks = {}
+        self.subscribers = {}
         self.reaper = None
+
+    @contextmanager
+    def subscribe(self, rid):
+        """A coalesced wake-up signal per connection, without buffering events."""
+        signal = asyncio.Event()
+        signals = self.subscribers.setdefault(rid, set())
+        signals.add(signal)
+        try:
+            yield signal
+        finally:
+            signals.discard(signal)
+            if not signals:
+                self.subscribers.pop(rid, None)
+
+    def notify(self, rid):
+        for signal in self.subscribers.get(rid, ()):
+            signal.set()
 
     def box(self, uid, sid):
         return self.sandbox_factory(user_id=uid, session_id=sid, settings=self.settings)
@@ -102,10 +121,12 @@ class Jobs:
 
         async def emit(event):
             await asyncio.to_thread(self.store.append_event, rid, event)
+            self.notify(rid)
 
         async def execute():
             nonlocal box, start_task
             await asyncio.to_thread(self.store.start, rid)
+            self.notify(rid)
             box = self.box(uid, sid)
             async with asyncio.timeout(self.settings.run_timeout) as timeout:
                 # Scoped to this execution Task, including startup and its child graph.
@@ -150,3 +171,4 @@ class Jobs:
             if not cleaned and state == "completed":
                 state, error = "failed", "任务已返回，但沙箱清理失败"
             await asyncio.to_thread(self.store.finish, rid, state, answer, error)
+            self.notify(rid)

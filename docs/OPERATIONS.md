@@ -14,6 +14,15 @@ agent.example.org {
 
 企业代理环境可设置 `FAMSUN_CA_FILE` 为受信任的公开根证书，再用 `docker compose -f compose.yaml -f deploy/corporate-ca.compose.yaml --profile build build sandbox-image helper-image app` 构建。按网络要求设置 `FAMSUN_EGRESS_UPSTREAM`，指向出口代理可以访问的企业 HTTP 代理。保持证书验证开启。
 
+## 实时执行记录与断线恢复
+
+浏览器通过同源登录 cookie 订阅 `GET /api/sessions/{sid}/runs/{rid}/stream?after=N`。代理应持续转发 `text/event-stream` 响应并关闭该路由的响应缓冲。服务返回 `X-Accel-Buffering: no`、禁止缓存，空闲连接每 10 秒发送心跳注释。代理的上游空闲超时应大于心跳间隔。Caddy 会即时刷新事件流。使用 Nginx 时，可在相应 location 设置 `proxy_buffering off` 与 `proxy_read_timeout 60s`。
+
+- 每条 `activity` 的 SSE `id` 是已提交的 SQLite 事件序号 `seq`。其 JSON 数据与分页接口中的同一行一致。业务节点的 `id` 可以重复，`parent_id` 用于还原层级。结构化参数、结果和模型公开文本增量位于可选 `payload`。合并时按 `seq` 去重，并保留此前已收到的节点内容。
+- 重连时使用 `Last-Event-ID`，或者在新连接上设置 `after`。同时提供时使用较大的游标。服务按升序回放，查询每页最多 500 条、事件 JSON 预算 4 MiB。已发出的事件保存在 SQLite，关闭页面不影响任务。账户归属在每批数据读取时核验，撤销登录或令牌过期会关闭流。
+- 全部终态记录送达后，服务发送 `end`，JSON 包含 `status`、`cursor`。客户端收到后关闭 EventSource。需要分页时，使用 `GET /api/sessions/{sid}/runs/{rid}/events?after=N`，依次读取 `events`、推进 `cursor`，并在 `has_more` 为真时继续读取。
+- 旧库首次启动时自动为事件表添加可空的 `payload` 列。历史记录保留原序号和时间；其结构化字段为 null。无需重建会话或重置浏览器游标。新增大字段可能增加数据库体积，容量监控及备份应包含事件数据。
+
 ## 容量与隔离
 
 - `FAMSUN_MAX_PARALLEL_RUNS` 默认 4，同时运行的任务共享模型额度与主机能力。每会话最多一个进行中的任务。对繁忙的服务，按模型吞吐、CPU 和峰值内存调整并发。

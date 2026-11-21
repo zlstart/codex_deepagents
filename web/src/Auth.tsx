@@ -5,6 +5,7 @@ import {
   EyeOff,
   LoaderCircle,
   LockKeyhole,
+  UserRound,
 } from "lucide-react";
 import { Brand } from "./Brand";
 import { HttpError, messageOf, post, request } from "./api";
@@ -56,58 +57,50 @@ export function Auth({ onLogin }: { onLogin: (u: Identity) => void }) {
   };
   return (
     <main className="auth-shell">
-      <section className="auth-plate">
+      <header className="auth-masthead">
         <Brand />
-        <div className="plate-caption">
-          <span className="plate-rule" />
-          <span>环模制粒机</span>
-          <small>RING-DIE PELLET MILL</small>
-        </div>
-        <div className="plate-image">
-          <img
-            src="/images/mill.webp"
-            alt="环模制粒机传动与制粒组件的分解线稿"
-          />
-        </div>
-        <div className="plate-footer">
-          <h1>工程智能工作台</h1>
-        </div>
-      </section>
-      <section className="auth-form-area">
+      </header>
+      <div className="auth-scene" aria-hidden="true">
+        <img src="/images/portal.webp" alt="" fetchPriority="high" />
+      </div>
+      <section className="auth-form-area" aria-labelledby="auth-title">
         <div className="auth-inner">
-          <div className="auth-glyph">
-            <LockKeyhole size={21} />
-          </div>
-          <h2>{register ? "创建工作台账户" : "登录工作台"}</h2>
+          <h1 id="auth-title">{register ? "创建工作台账户" : "登录工作台"}</h1>
           <p>
             {register
-              ? "使用独立账户保存会话和工程文件。"
-              : "访问你的智能体会话与工程文件。"}
+              ? "创建账户，保存你的会话与工作文件。"
+              : "使用你的账户登录 FAMSUN Agent。"}
           </p>
           <form onSubmit={submit}>
             <label>
               用户名
-              <input
-                autoComplete="username"
-                required
-                minLength={register ? 3 : 1}
-                maxLength={64}
-                pattern={
-                  register ? "[A-Za-z0-9][A-Za-z0-9._\\-]{2,63}" : undefined
-                }
-                title={
-                  register
-                    ? "3–64 个字母、数字、点、下划线或连字符，以字母或数字开头"
-                    : undefined
-                }
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
+              <div className="auth-field">
+                <UserRound size={17} aria-hidden="true" />
+                <input
+                  placeholder="输入用户名"
+                  autoComplete="username"
+                  required
+                  minLength={register ? 3 : 1}
+                  maxLength={64}
+                  pattern={
+                    register ? "[A-Za-z0-9][A-Za-z0-9._\\-]{2,63}" : undefined
+                  }
+                  title={
+                    register
+                      ? "3–64 个字母、数字、点、下划线或连字符，以字母或数字开头"
+                      : undefined
+                  }
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
             </label>
             <label>
               密码
-              <div className="password-field">
+              <div className="auth-field password-field">
+                <LockKeyhole size={17} aria-hidden="true" />
                 <input
+                  placeholder={register ? "设置至少 12 位密码" : "输入密码"}
                   type={show ? "text" : "password"}
                   autoComplete={register ? "new-password" : "current-password"}
                   required

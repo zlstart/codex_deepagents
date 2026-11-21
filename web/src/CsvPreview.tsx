@@ -17,7 +17,7 @@ export default function CsvPreview({ buffer }: { buffer: ArrayBuffer }) {
     parsed.data.length > ROWS || rows.some((row) => row.length > COLUMNS);
   return (
     <section className="csv-preview">
-      <div className="csv-switch">
+      <div className="preview-switch">
         <button aria-pressed={!raw} onClick={() => setRaw(false)}>
           表格
         </button>

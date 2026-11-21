@@ -10,7 +10,7 @@ async function signUp(page: Page) {
   await page.getByLabel("密码", { exact: true }).fill(pass);
   await page.getByRole("button", { name: "创建账户", exact: true }).click();
   await expect(
-    page.getByRole("heading", { name: "今天，想构建什么？" }),
+    page.getByRole("heading", { name: "有什么可以帮你？" }),
   ).toBeVisible();
   return username;
 }
@@ -18,6 +18,115 @@ async function send(page: Page, prompt: string) {
   await page.getByRole("textbox", { name: "任务描述" }).fill(prompt);
   await page.getByRole("button", { name: "发送任务", exact: true }).click();
 }
+async function startStreamedReport(page: Page) {
+  const accepted = page.waitForResponse(
+    (response) =>
+      response.request().method() === "POST" &&
+      response.url().endsWith("/runs"),
+  );
+  await send(page, "分步汇总渠道订单");
+  const response = await accepted;
+  expect(response.status()).toBe(202);
+  return (await response.json()).id as string;
+}
+async function release(page: Page, id: string, phase: string) {
+  expect(
+    (await page.request.post("/fixture/" + id + "/" + phase)).status(),
+  ).toBe(200);
+}
+async function expand(button: ReturnType<Page["getByRole"]>) {
+  if ((await button.getAttribute("aria-expanded")) !== "true")
+    await button.click();
+}
+
+test("stream public model text before tools and final answer, replay while active, and inspect nested tool results", async ({
+  page,
+}) => {
+  await signUp(page);
+  const streamConnected = page.waitForResponse(
+    (response) =>
+      response.url().includes("/stream?after=") &&
+      response.headers()["content-type"]?.startsWith("text/event-stream"),
+  );
+  const id = await startStreamedReport(page);
+  await streamConnected;
+  await release(page, id, "delta");
+  await expect(page.locator(".timeline-message")).toHaveText(
+    "先核对订单明细，",
+  );
+  await expect(page.getByRole("button", { name: "停止执行" })).toBeVisible();
+  await expect(page.getByText("再汇总每个渠道的销售额。")).toHaveCount(0);
+  await release(page, id, "tool");
+  const sentence = "先核对订单明细，再汇总每个渠道的销售额。";
+  await expect(page.locator(".timeline-message")).toHaveText(sentence);
+  await page.reload();
+  await expect(page.getByText(sentence, { exact: true })).toBeVisible();
+  await expand(page.locator(".trace-summary"));
+  const delegation = page.getByRole("button", { name: /子智能体.*数据复核/ });
+  await expand(delegation);
+  const child = delegation
+    .locator("xpath=ancestor::li[1]")
+    .locator("ol li")
+    .getByRole("button", { name: /运行命令/ });
+  await expand(child);
+  await expect(
+    page.locator("pre[aria-label='输入参数 · command']"),
+  ).toContainText("python verify_orders.py orders.csv");
+  await expect(page.locator("pre[aria-label='返回结果']")).toHaveText(
+    "3 orders, total=150",
+  );
+  await expect(page.getByText(/退出码/)).toBeVisible();
+  await delegation.click();
+  await expect(child).toBeHidden();
+  await release(page, id, "finish");
+  await expect(
+    page.getByText("三个渠道销售合计 150 元。", { exact: true }),
+  ).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "停止执行" })).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByText(sentence, { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("三个渠道销售合计 150 元。", { exact: true }),
+  ).toHaveCount(1);
+  await page.getByRole("button", { name: "文件", exact: true }).click();
+  await page.getByRole("button", { name: /sales-summary.md/ }).click();
+  await expect(
+    page.getByText("合计 150 元。", { exact: false }).last(),
+  ).toBeVisible();
+});
+
+test("a disconnected event stream resumes from a nonzero cursor over the events API", async ({
+  page,
+}) => {
+  await signUp(page);
+  let failedStream = 0;
+  const resumed: number[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname.endsWith("/events"))
+      resumed.push(Number(url.searchParams.get("after")));
+  });
+  await page.route("**/stream?after=*", async (route) => {
+    failedStream++;
+    await route.abort("connectionreset");
+  });
+  const id = await startStreamedReport(page);
+  await expect.poll(() => failedStream).toBeGreaterThan(0);
+  await release(page, id, "delta");
+  await expect(page.locator(".timeline-message")).toHaveText(
+    "先核对订单明细，",
+  );
+  await release(page, id, "tool");
+  await expect(page.locator(".timeline-message")).toHaveText(
+    "先核对订单明细，再汇总每个渠道的销售额。",
+  );
+  expect(resumed.some((c) => c > 0)).toBeTruthy();
+  await release(page, id, "finish");
+  await expect(
+    page.getByText("三个渠道销售合计 150 元。", { exact: true }),
+  ).toBeVisible();
+});
+
 test("account, starters, history, three-level traces, safe artifact preview, interactive GLB, logout", async ({
   page,
 }, info) => {
@@ -31,11 +140,37 @@ test("account, starters, history, three-level traces, safe artifact preview, int
   await expect(page.getByRole("button", { name: "新建会话" })).toBeEnabled();
   await page.setViewportSize({ width: 1488, height: 1058 });
   await page.screenshot({ path: info.outputPath("workspace.png") });
-  await page.getByRole("button", { name: "制粒机爆炸模型" }).click();
+  await page.getByRole("button", { name: "制定工作计划" }).click();
   await expect(page.getByRole("textbox", { name: "任务描述" })).toHaveValue(
-    /导出 GLB/,
+    /工作计划/,
   );
-  await send(page, "生成独立网格");
+  const legacyTitle =
+    "原始长标题。后续内容以前被完整写入数据库，但不应出现在工作台标题。";
+  const legacy = await page.request.post("/api/sessions", {
+    data: { title: legacyTitle },
+  });
+  expect(legacy.ok()).toBe(true);
+  const oldSession = await legacy.json();
+  const oldRun = await page.request.post(
+    "/api/sessions/" + oldSession.id + "/runs",
+    {
+      data: { prompt: "这是一个历史会话中的已完成任务" },
+    },
+  );
+  expect(oldRun.status()).toBe(202);
+  await page.reload();
+  await expect(page.getByText("生成完成：")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "原始长标题", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "新建会话" }).click();
+  const task =
+    "生成独立网格。请将这段执行说明保留在对话内容中，而将首句用于会话标题。";
+  await send(page, task);
+  await expect(page.locator(".topbar .crumb")).toHaveText("生成独立网格");
+  await expect(
+    page.getByRole("button", { name: "生成独立网格", exact: true }),
+  ).toBeVisible();
   await expect(page.getByText("生成完成：")).toBeVisible();
   const toggle = page.getByRole("button", { name: /执行过程/ });
   if ((await toggle.getAttribute("aria-expanded")) !== "true")
@@ -77,12 +212,42 @@ test("account, starters, history, three-level traces, safe artifact preview, int
   expect(
     await page.evaluate(() => Reflect.get(window, "untrusted")),
   ).toBeUndefined();
+  const outgoing: string[] = [];
+  page.on("request", (r) => {
+    if (new URL(r.url()).hostname === "external.invalid")
+      outgoing.push(r.url());
+  });
+  await page.getByRole("button", { name: "全部文件" }).click();
+  await page.getByRole("button", { name: /summary.md/ }).click();
+  const preview = page.getByRole("complementary", { name: "工作区文件" });
+  await expect(
+    preview.getByRole("heading", { level: 1, name: "周度摘要" }),
+  ).toBeVisible();
+  await expect(
+    preview.getByRole("table").getByRole("cell", { name: "150" }),
+  ).toBeVisible();
+  await expect(
+    preview.locator("img[src^='https://external.invalid']"),
+  ).toHaveCount(0);
+  await preview.getByRole("button", { name: "原文", exact: true }).click();
+  await expect(preview.locator(".text-preview")).toContainText(
+    "| 门店 | 150 |",
+  );
+  await expect(preview.locator(".text-preview")).toContainText("<script>");
+  await preview.getByRole("button", { name: "正文", exact: true }).click();
+  await expect(
+    preview.getByRole("heading", { level: 1, name: "周度摘要" }),
+  ).toBeVisible();
+  expect(outgoing).toEqual([]);
+  expect(
+    await page.evaluate(() => Reflect.get(window, "untrusted")),
+  ).toBeUndefined();
   await page.getByRole("button", { name: "关闭文件" }).click();
   await page.reload();
   await expect(page.getByText("生成完成：")).toBeVisible();
   await page.getByRole("button", { name: "新建会话" }).click();
   await expect(
-    page.getByRole("heading", { name: "今天，想构建什么？" }),
+    page.getByRole("heading", { name: "有什么可以帮你？" }),
   ).toBeVisible();
   await page.getByRole("button", { name: "生成独立网格", exact: true }).click();
   await expect(page.getByText("生成完成：")).toBeVisible();
@@ -107,6 +272,23 @@ test("cancel an active run and display execution failure", async ({ page }) => {
   await send(page, "测试失败");
   await expect(page.getByRole("alert")).toContainText("任务执行失败");
   await expect(page.getByRole("button", { name: "发送任务" })).toBeDisabled();
+  await send(page, "检查失败的工具调用");
+  await expect(
+    page.getByText("改用 orders.csv 后，确认有四行订单。"),
+  ).toBeVisible();
+  await expand(page.locator(".run-entry").last().locator(".trace-summary"));
+  const failed = page.getByRole("button", {
+    name: /运行命令.*missing.csv.*失败/,
+  });
+  await expand(failed);
+  const card = failed.locator("xpath=ancestor::li[1]");
+  await expect(card.getByLabel("失败输出")).toHaveText(
+    "missing.csv: not found",
+  );
+  await expect(card.getByText(/退出码/)).toContainText("2");
+  await expect(
+    page.getByRole("button", { name: /运行命令.*orders.csv.*已完成/ }),
+  ).toBeVisible();
 });
 test("mobile drawer, file panel, keyboard composer, and recoverable read failure", async ({
   page,

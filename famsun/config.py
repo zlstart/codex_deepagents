@@ -135,7 +135,7 @@ class Settings:
     allow_signup: bool = field(
         default_factory=lambda: flag("FAMSUN_ALLOW_SIGNUP", False)
     )
-    mcp_enabled: bool = field(default_factory=lambda: flag("FAMSUN_MCP_ENABLED", True))
+    mcp_enabled: bool = field(default_factory=lambda: flag("FAMSUN_MCP_ENABLED", False))
 
     @property
     def checkpoint_path(self) -> Path:

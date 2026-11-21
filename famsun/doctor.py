@@ -11,7 +11,12 @@ from langchain_core.messages import HumanMessage, ToolMessage
 from langchain_core.tools import tool
 
 from .config import Settings
-from .harness import build_model, documentation_tools
+from .docs_mcp import probe_tools
+from .harness import build_model
+
+
+class ProbeFailure(ValueError):
+    """A fixed, operator-facing diagnostic without model or request content."""
 
 
 @tool
@@ -34,6 +39,8 @@ async def inspect(*, live_model: bool, strict: bool) -> dict:
     async def check(name, check_function):
         try:
             results[name] = {"status": "pass", "detail": await check_function()}
+        except ProbeFailure as exc:
+            results[name] = {"status": "fail", "detail": str(exc)}
         except Exception as exc:  # noqa: BLE001 - one failed probe must not hide other results.
             # Provider exception payloads may include request headers or inputs.
             results[name] = {"status": "fail", "detail": type(exc).__name__}
@@ -60,27 +67,30 @@ async def inspect(*, live_model: bool, strict: bool) -> dict:
     async def model():
         if not settings.llm_model or not settings.llm_api_key:
             raise ValueError("Model configuration is incomplete")
-        chat = build_model(settings).bind_tools([read_probe_value])
+        chat = build_model(settings)
         messages = [
-            HumanMessage(content="Call read_probe_value once and return its value.")
+            HumanMessage(
+                content="Retrieve the current reference value with read_probe_value. Reply with the value from the tool."
+            )
         ]
-        reply = await chat.ainvoke(messages)
+        reply = await chat.bind_tools([read_probe_value]).ainvoke(messages)
         if (
             len(reply.tool_calls) != 1
             or reply.tool_calls[0]["name"] != read_probe_value.name
         ):
-            raise ValueError("No tool call")
+            raise ProbeFailure("Model did not request the reference tool exactly once")
         call = reply.tool_calls[0]
         message = ToolMessage(
-            content=read_probe_value.invoke(call["args"]), tool_call_id=call["id"]
+            name=call["name"],
+            content=read_probe_value.invoke(call["args"]),
+            tool_call_id=call["id"],
         )
         final = await chat.ainvoke([*messages, reply, message])
         if "1847" not in final.text or final.tool_calls:
-            raise ValueError("Tool round trip failed")
+            raise ProbeFailure(
+                "Model did not return the reference value after tool execution"
+            )
         return {"model": settings.llm_model, "tool_round_trip": True}
-
-    async def mcp():
-        return [t.name for t in await documentation_tools()]
 
     await check("sqlite", lambda: asyncio.to_thread(storage))
     await check("docker", lambda: asyncio.to_thread(engine))
@@ -100,7 +110,7 @@ async def inspect(*, live_model: bool, strict: bool) -> dict:
     if live_model:
         await check("model", model)
     if settings.mcp_enabled:
-        await check("langchain_mcp", mcp)
+        await check("langchain_mcp", probe_tools)
     return results
 
 

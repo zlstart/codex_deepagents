@@ -17,6 +17,18 @@ export type Run = {
   created_at: string;
   updated_at: string;
 };
+export type JsonValue =
+  string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+export type ToolPayload = {
+  type: "tool";
+  arguments?: Record<string, JsonValue>;
+  truncated?: boolean;
+  arguments_truncated?: boolean;
+  result?: JsonValue;
+  result_truncated?: boolean;
+  exit_code?: number;
+  error?: string;
+};
 export type Trace = {
   seq: number;
   id: string;
@@ -25,6 +37,11 @@ export type Trace = {
   label: string;
   status: string;
   detail?: string | null;
+  payload?:
+    | ToolPayload
+    | { type: "model_text"; delta: string; truncated?: boolean }
+    | { type: "model_end"; has_tool_calls: boolean }
+    | null;
   created_at: string;
 };
 export type Artifact = {

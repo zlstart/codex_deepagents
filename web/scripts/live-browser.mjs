@@ -78,7 +78,7 @@ try {
       .getByLabel("密码", { exact: true })
       .fill(randomBytes(24).toString("hex"));
     await page.getByRole("button", { name: "创建账户", exact: true }).click();
-    await page.getByRole("heading", { name: "今天，想构建什么？" }).waitFor();
+    await page.getByRole("heading", { name: "有什么可以帮你？" }).waitFor();
     await page.getByRole("textbox", { name: "任务描述" }).fill(brief);
     const [accepted] = await Promise.all([
       page.waitForResponse(

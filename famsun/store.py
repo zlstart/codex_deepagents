@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import re
 import sqlite3
 import time
 from contextlib import contextmanager
@@ -14,6 +16,10 @@ class Missing(Exception):
     pass
 
 
+class SessionRevoked(Exception):
+    pass
+
+
 class Conflict(Exception):
     pass
 
@@ -23,6 +29,49 @@ class Busy(Exception):
 
 
 ACTIVE = ("queued", "running")
+EVENT_PAGE_BYTES = 4 * 1024**2
+EVENT_PAYLOAD_BYTES = 128 * 1024
+
+
+def encode_payload(payload):
+    if payload is None:
+        return None
+    if not isinstance(payload, dict):
+        raise TypeError("event payload must be an object")
+    data = json.dumps(
+        payload, ensure_ascii=False, separators=(",", ":"), allow_nan=False
+    )
+    if len(data.encode()) <= EVENT_PAYLOAD_BYTES:
+        return data
+    # A single unexpectedly large public callback must not cancel the job.
+    # The harness normally applies its field-specific bounds and redaction first.
+    if payload.get("type") == "model_text" and isinstance(payload.get("delta"), str):
+        prefix = (
+            payload["delta"]
+            .encode()[: EVENT_PAYLOAD_BYTES // 8]
+            .decode(errors="ignore")
+        )
+        omitted = {"type": "model_text", "delta": prefix, "truncated": True}
+    else:
+        omitted = {
+            "type": "tool",
+            "truncated": True,
+            "arguments_truncated": True,
+            "result_truncated": True,
+            "truncation_note": "结构化记录超过单条存储上限",
+        }
+    return json.dumps(omitted, ensure_ascii=False, separators=(",", ":"))
+
+
+_TITLE_END = re.compile(r"[。！？!?：\r\n]|\.(?=\s|$)|:(?=\s)")
+
+
+def suggested_title(prompt: str) -> str:
+    title = next(
+        (part.strip() for part in _TITLE_END.split(prompt.strip()) if part.strip()),
+        "新会话",
+    )
+    return title if len(title) <= 28 else title[:27] + "…"
 
 
 def now() -> str:
@@ -98,6 +147,7 @@ class Store:
                     label TEXT NOT NULL,
                     status TEXT NOT NULL,
                     detail TEXT,
+                    payload TEXT,
                     created_at TEXT NOT NULL
                 );
                 CREATE INDEX IF NOT EXISTS event_run ON events(run_id,seq);
@@ -105,6 +155,13 @@ class Store:
                     session_id TEXT PRIMARY KEY REFERENCES sessions(id)
                 );
             """)
+        # BEGIN IMMEDIATE also serializes migration with the admin account CLI.
+        # Existing append-only records acquire a null payload, retaining their seq.
+        with self.db(write=True) as con:
+            if "payload" not in {
+                row["name"] for row in con.execute("PRAGMA table_info(events)")
+            }:
+                con.execute("ALTER TABLE events ADD COLUMN payload TEXT")
 
     def create_user(self, username: str, password_hash: str):
         uid = uuid4().hex
@@ -243,7 +300,11 @@ class Store:
                 >= max_parallel
             ):
                 raise Busy("当前执行资源已占满，请稍后重试")
-            title = prompt[:72] if session["title"] == "新会话" else session["title"]
+            title = (
+                suggested_title(prompt)
+                if session["title"] == "新会话"
+                else session["title"]
+            )
             con.execute(
                 "UPDATE sessions SET title=?,updated_at=? WHERE id=?",
                 (title, stamp, sid),
@@ -267,8 +328,8 @@ class Store:
     @staticmethod
     def _event(con, rid, event):
         con.execute(
-            """INSERT INTO events(run_id,id,parent_id,kind,label,status,detail,created_at)
-                    VALUES (?,?,?,?,?,?,?,?)""",
+            """INSERT INTO events(run_id,id,parent_id,kind,label,status,detail,payload,created_at)
+                    VALUES (?,?,?,?,?,?,?,?,?)""",
             (
                 rid,
                 event["id"],
@@ -277,6 +338,7 @@ class Store:
                 event["label"],
                 event["status"],
                 event.get("detail"),
+                encode_payload(event.get("payload")),
                 now(),
             ),
         )
@@ -325,7 +387,9 @@ class Store:
                     (rid, rid),
                 ).fetchall()
                 for event in open_rows:
-                    self._event(con, rid, {**dict(event), "status": status})
+                    self._event(
+                        con, rid, {**dict(event), "status": status, "payload": None}
+                    )
             self._event(
                 con,
                 rid,
@@ -346,22 +410,55 @@ class Store:
                 (stamp, row["session_id"]),
             )
 
-    def events(self, uid, sid, rid, after):
+    def events(self, uid, sid, rid, after, *, token_digest=None):
         with self.db() as con:
-            # One read snapshot covers the terminal status and corresponding final event.
+            # One snapshot covers ownership, token validity, terminal status and
+            # final rows. Release it before yielding anything to an SSE client.
             con.execute("BEGIN")
-            self.own(con, uid, sid)
-            run = self.run_row(con, sid, rid)
+            if (
+                token_digest is not None
+                and not con.execute(
+                    "SELECT 1 FROM tokens WHERE digest=? AND user_id=? AND expires_at>?",
+                    (token_digest, uid, int(time.time())),
+                ).fetchone()
+            ):
+                raise SessionRevoked
+            run = con.execute(
+                """SELECT r.status FROM runs r JOIN sessions s ON r.session_id=s.id
+                              WHERE r.id=? AND s.id=? AND s.user_id=?""",
+                (rid, sid, uid),
+            ).fetchone()
+            if not run:
+                raise Missing
             rows = con.execute(
-                """SELECT seq,id,parent_id,kind,label,status,detail,created_at
-                FROM events WHERE run_id=? AND seq>? ORDER BY seq LIMIT 501""",
+                """SELECT seq,id,parent_id,kind,label,status,detail,payload,created_at
+                               FROM events WHERE run_id=? AND seq>? ORDER BY seq LIMIT 501""",
                 (rid, after),
-            ).fetchall()
-            page = rows[:500]
+            )
+            page = []
+            has_more = False
+            size = 0
+            for row in rows:
+                event = dict(row)
+                if event["payload"] is not None:
+                    event["payload"] = json.loads(event["payload"])
+                event_size = (
+                    len(
+                        json.dumps(
+                            event, ensure_ascii=False, separators=(",", ":")
+                        ).encode()
+                    )
+                    + 1
+                )
+                if len(page) == 500 or (page and size + event_size > EVENT_PAGE_BYTES):
+                    has_more = True
+                    break
+                page.append(event)
+                size += event_size
             return {
-                "events": [dict(row) for row in page],
+                "events": page,
                 "cursor": page[-1]["seq"] if page else after,
-                "has_more": len(rows) > len(page),
+                "has_more": has_more,
                 "status": run["status"],
             }
 
