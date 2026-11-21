@@ -116,7 +116,8 @@ class Store:
                     user_id TEXT NOT NULL REFERENCES users(id),
                     title TEXT NOT NULL,
                     created_at TEXT NOT NULL,
-                    updated_at TEXT NOT NULL
+                    updated_at TEXT NOT NULL,
+                    deleting INTEGER NOT NULL DEFAULT 0
                 );
                 CREATE INDEX IF NOT EXISTS session_owner ON sessions(user_id,updated_at);
                 CREATE TABLE IF NOT EXISTS runs (
@@ -162,6 +163,12 @@ class Store:
                 row["name"] for row in con.execute("PRAGMA table_info(events)")
             }:
                 con.execute("ALTER TABLE events ADD COLUMN payload TEXT")
+            if "deleting" not in {
+                row["name"] for row in con.execute("PRAGMA table_info(sessions)")
+            }:
+                con.execute(
+                    "ALTER TABLE sessions ADD COLUMN deleting INTEGER NOT NULL DEFAULT 0"
+                )
 
     def create_user(self, username: str, password_hash: str):
         uid = uuid4().hex
@@ -210,7 +217,7 @@ class Store:
     @staticmethod
     def own(con, uid, sid):
         row = con.execute(
-            "SELECT * FROM sessions WHERE id=? AND user_id=?", (sid, uid)
+            "SELECT * FROM sessions WHERE id=? AND user_id=? AND deleting=0", (sid, uid)
         ).fetchone()
         if not row:
             raise Missing
@@ -229,7 +236,7 @@ class Store:
             return [
                 self.public_session(row)
                 for row in con.execute(
-                    "SELECT * FROM sessions WHERE user_id=? ORDER BY updated_at DESC",
+                    "SELECT * FROM sessions WHERE user_id=? AND deleting=0 ORDER BY updated_at DESC",
                     (uid,),
                 )
             ]
@@ -239,10 +246,65 @@ class Store:
         stamp = now()
         with self.db(write=True) as con:
             con.execute(
-                "INSERT INTO sessions VALUES (?,?,?,?,?)",
+                "INSERT INTO sessions(id,user_id,title,created_at,updated_at) VALUES (?,?,?,?,?)",
                 (sid, uid, title, stamp, stamp),
             )
             return self.public_session(self.own(con, uid, sid))
+
+    def mark_for_deletion(self, uid, sid):
+        # Share the same write lock as new_run: either the new run is admitted
+        # first and deletion returns 409, or the tombstone wins and it cannot start.
+        with self.db(write=True) as con:
+            if not con.execute(
+                "SELECT 1 FROM sessions WHERE user_id=? AND id=?", (uid, sid)
+            ).fetchone():
+                raise Missing
+            if con.execute(
+                "SELECT 1 FROM runs WHERE session_id=? AND status IN ('queued','running')",
+                (sid,),
+            ).fetchone():
+                raise Conflict("会话中有任务正在执行，请先停止任务，再删除会话")
+            con.execute(
+                "UPDATE sessions SET deleting=1 WHERE user_id=? AND id=?", (uid, sid)
+            )
+
+    def deletion_is_pending(self, uid, sid):
+        with self.db() as con:
+            return (
+                con.execute(
+                    "SELECT 1 FROM sessions WHERE user_id=? AND id=? AND deleting=1",
+                    (uid, sid),
+                ).fetchone()
+                is not None
+            )
+
+    def pending_deletions(self):
+        with self.db() as con:
+            return [
+                dict(row)
+                for row in con.execute(
+                    "SELECT id,user_id FROM sessions WHERE deleting=1"
+                )
+            ]
+
+    def finalize_deletion(self, uid, sid):
+        with self.db(write=True) as con:
+            if not con.execute(
+                "SELECT 1 FROM sessions WHERE user_id=? AND id=? AND deleting=1",
+                (uid, sid),
+            ).fetchone():
+                raise Missing
+            con.execute(
+                "DELETE FROM events WHERE run_id IN (SELECT id FROM runs WHERE session_id=?)",
+                (sid,),
+            )
+            con.execute("DELETE FROM run_requests WHERE session_id=?", (sid,))
+            con.execute("DELETE FROM runs WHERE session_id=?", (sid,))
+            con.execute("DELETE FROM cleanup WHERE session_id=?", (sid,))
+            con.execute(
+                "DELETE FROM sessions WHERE user_id=? AND id=? AND deleting=1",
+                (uid, sid),
+            )
 
     def runs(self, uid, sid):
         with self.db() as con:
@@ -425,7 +487,7 @@ class Store:
                 raise SessionRevoked
             run = con.execute(
                 """SELECT r.status FROM runs r JOIN sessions s ON r.session_id=s.id
-                              WHERE r.id=? AND s.id=? AND s.user_id=?""",
+                              WHERE r.id=? AND s.id=? AND s.user_id=? AND s.deleting=0""",
                 (rid, sid, uid),
             ).fetchone()
             if not run:
@@ -478,7 +540,7 @@ class Store:
             return [
                 dict(row)
                 for row in con.execute("""SELECT s.id,s.user_id FROM sessions s
-                    JOIN cleanup c ON c.session_id=s.id WHERE NOT EXISTS (SELECT 1 FROM runs r
+                    JOIN cleanup c ON c.session_id=s.id WHERE s.deleting=0 AND NOT EXISTS (SELECT 1 FROM runs r
                     WHERE r.session_id=s.id AND r.status IN ('queued','running'))""")
             ]
 

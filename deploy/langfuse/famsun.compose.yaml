@@ -1,0 +1,11 @@
+# Merge with the FAMSUN application's root compose.yaml.
+services:
+  app:
+    networks: [default, observability]
+    environment:
+      NO_PROXY: "${NO_PROXY:-localhost,127.0.0.1},langfuse-web"
+      no_proxy: "${no_proxy:-${NO_PROXY:-localhost,127.0.0.1}},langfuse-web"
+networks:
+  observability:
+    external: true
+    name: famsun-observability

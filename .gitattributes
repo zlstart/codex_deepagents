@@ -1,3 +1,7 @@
 # Preserve the checksum of files downloaded from the agent workspace.
 evals/results/** -text
 evals/results/**/*.csv -text whitespace=cr-at-eol
+# Preserve binary Office examples and PDF cross-reference offsets on checkout.
+tests/fixtures/*.pdf binary
+tests/fixtures/*.xls binary
+tests/fixtures/*.zip binary

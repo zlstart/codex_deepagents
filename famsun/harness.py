@@ -20,6 +20,8 @@ from .budget import BudgetReminder
 from .docs_mcp import search_docs_by_lang_chain
 from .memory import SessionMemory
 from .runtime import BudgetClosed
+from .session_checkpoints import session_thread_id
+from .telemetry import start_telemetry
 from .trace import ActivityTrace, Emit
 
 SKILLS = "/opt/famsun/skills"
@@ -82,6 +84,7 @@ def build_model(settings):
         api_key=settings.llm_api_key,
         use_responses_api=False,
         streaming=getattr(settings, "llm_streaming", True),
+        stream_usage=getattr(settings, "llm_stream_usage", None),
         timeout=120,
         max_retries=2,
     )
@@ -153,6 +156,8 @@ async def run_agent(
     time_limit = getattr(settings, "run_timeout", 900)
     budget = BudgetReminder(trace, step_limit, time_limit)
     child_budget = BudgetReminder(trace, step_limit, time_limit, allow_summary=False)
+    telemetry = start_telemetry(settings, user_id, session_id, run_id, prompt)
+    answer = ""
     try:
         tools = [search_docs_by_lang_chain] if settings.mcp_enabled else []
         checkpoint_path = Path(settings.checkpoint_path)
@@ -179,8 +184,8 @@ async def run_agent(
                 name="famsun",
             )
             config = {
-                "configurable": {"thread_id": f"{user_id}/{session_id}"},
-                "callbacks": [trace],
+                "configurable": {"thread_id": session_thread_id(user_id, session_id)},
+                "callbacks": [trace, telemetry.handler] if telemetry else [trace],
                 "recursion_limit": step_limit,
             }
             previous = await load_state(agent, config)
@@ -242,5 +247,11 @@ async def run_agent(
             "任务已达到最大执行步数，请缩小任务范围或在本会话继续"
         ) from None
     finally:
-        await trace.close_pending("cancelled" if status == "cancelled" else "failed")
-        await emit({**agent_node, "status": status})
+        try:
+            await trace.close_pending(
+                "cancelled" if status == "cancelled" else "failed"
+            )
+            await emit({**agent_node, "status": status})
+        finally:
+            if telemetry:
+                telemetry.finish(status, answer or budget.summary)

@@ -1,0 +1,67 @@
+{
+  "observed_at": "2026-11-21T11:20:49+00:00",
+  "verification_command": "uv run --locked pytest -q tests/test_langfuse.py tests/test_harness*.py tests/test_budget_closure.py",
+  "test_result": "43 passed",
+  "wire_checks": [
+    {
+      "capture_content": false,
+      "scope": "real Deep Agents graph, controlled model, Langfuse SDK, loopback HTTP OTLP/protobuf",
+      "sdk": "5.2.0",
+      "ingestion_version": "4",
+      "path": "/api/public/otel/v1/traces",
+      "span_count": 40,
+      "observation_types": {
+        "agent": 11,
+        "chain": 19,
+        "generation": 6,
+        "tool": 4
+      },
+      "delegated_tools": [
+        "task/engineering",
+        "task/reviewer"
+      ],
+      "failed_read_branch": "reviewer",
+      "verified_properties": [
+        "single trace",
+        "all child parents resolve",
+        "HMAC user/session",
+        "no raw identity, secrets, hidden reasoning or system message",
+        "model token usage",
+        "run-triggered flush"
+      ]
+    },
+    {
+      "capture_content": true,
+      "scope": "real Deep Agents graph, controlled model, Langfuse SDK, loopback HTTP OTLP/protobuf",
+      "sdk": "5.2.0",
+      "ingestion_version": "4",
+      "path": "/api/public/otel/v1/traces",
+      "span_count": 40,
+      "observation_types": {
+        "agent": 11,
+        "chain": 19,
+        "generation": 6,
+        "tool": 4
+      },
+      "delegated_tools": [
+        "task/engineering",
+        "task/reviewer"
+      ],
+      "failed_read_branch": "reviewer",
+      "verified_properties": [
+        "single trace",
+        "all child parents resolve",
+        "HMAC user/session",
+        "no raw identity, secrets, hidden reasoning or system message",
+        "model token usage",
+        "run-triggered flush"
+      ]
+    }
+  ],
+  "resilience_checks": [
+    "HTTP 401 after collector holds response until the agent has already returned",
+    "application shutdown drains queued spans",
+    "concurrent cancelled and failed runs retain their own HMAC identities and parent traces",
+    "disabled when export switch is unset even with a project credential present"
+  ]
+}

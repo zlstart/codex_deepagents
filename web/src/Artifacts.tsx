@@ -5,6 +5,10 @@ import {
   Box,
   File,
   FileImage,
+  FileCode2,
+  FileType2,
+  Presentation,
+  Sheet,
   FileText,
   FolderOpen,
   Maximize2,
@@ -15,11 +19,21 @@ import {
 import { fileSize, fileURL, messageOf, request, scope } from "./api";
 import type { Artifact } from "./api";
 import { SafeMarkdown } from "./SafeMarkdown";
+import "./documents.css";
+const PdfPreview = lazy(() => import("./PdfPreview"));
+const SheetPreview = lazy(() => import("./SheetPreview"));
+const HtmlPreview = lazy(() => import("./HtmlPreview"));
 const CsvPreview = lazy(() => import("./CsvPreview"));
 const ModelViewer = lazy(() => import("./ModelViewer"));
 const ext = (p: string) => p.toLowerCase().split(".").pop() || "";
 function formatOf(f: Artifact) {
   const e = ext(f.name);
+  if (["doc", "docx", "odt", "rtf"].includes(e)) return "word";
+  if (["ppt", "pptx", "odp"].includes(e)) return "slides";
+  if (["xls", "xlsx"].includes(e)) return "sheet";
+  if (["pdf", "ods"].includes(e)) return "document";
+  if (["html", "htm"].includes(e) || /^text\/html(?:;|$)/i.test(f.mime_type))
+    return "html";
   if (e === "glb") return "model";
   if (e === "csv") return "csv";
   if (
@@ -40,7 +54,6 @@ function formatOf(f: Artifact) {
       "yml",
       "log",
       "obj",
-      "html",
       "xml",
       "svg",
       "scad",
@@ -68,6 +81,11 @@ function ArtifactPreview({
     [src, setSrc] = useState(""),
     [attempt, setAttempt] = useState(0);
   const kind = formatOf(file);
+  const [layout, setLayout] = useState(false);
+  const grid = kind === "sheet" && !layout;
+  const paged = ["word", "slides", "document", "sheet"].includes(kind);
+  const previewURL =
+    scope(sid) + "/preview?" + new URLSearchParams({ path: file.path });
   useEffect(() => {
     const ctrl = new AbortController();
     let objectURL = "";
@@ -75,20 +93,29 @@ function ArtifactPreview({
     setError("");
     setSrc("");
     async function load() {
-      if (kind === "other") return;
+      if (kind === "other" || grid) return;
       const limit =
-        kind === "text" || kind === "markdown"
+        kind === "text" || kind === "markdown" || kind === "html"
           ? 512 * 1024
           : kind === "csv"
             ? 8 * 1024 * 1024
             : 32 * 1024 * 1024;
       if (file.size > limit)
         throw new Error("文件超过预览大小上限，可下载后查看。");
-      const r = await fetch(fileURL(sid, file.path), {
+      const r = await fetch(paged ? previewURL : fileURL(sid, file.path), {
         signal: ctrl.signal,
         credentials: "same-origin",
       });
-      if (!r.ok) throw new Error("读取文件失败（" + r.status + "）。");
+      if (!r.ok) {
+        const body = await r.json().catch(() => ({}));
+        if (r.status === 401)
+          window.dispatchEvent(new Event("famsun:signed-out"));
+        throw new Error(
+          typeof body.detail === "string"
+            ? body.detail
+            : "读取文件失败（" + r.status + "）。",
+        );
+      }
       const b = await r.arrayBuffer();
       if (ctrl.signal.aborted) return;
       if (b.byteLength > limit)
@@ -108,19 +135,62 @@ function ArtifactPreview({
       ctrl.abort();
       if (objectURL) URL.revokeObjectURL(objectURL);
     };
-  }, [file.path, file.size, file.name, file.modified_at, kind, sid, attempt]);
-  if (error)
+  }, [
+    file.path,
+    file.size,
+    file.name,
+    file.modified_at,
+    kind,
+    sid,
+    attempt,
+    grid,
+    paged,
+    previewURL,
+  ]);
+  const failure = error ? (
+    <div className="file-notice" role="alert">
+      {error}
+      <button className="text-button" onClick={() => setAttempt((i) => i + 1)}>
+        重新读取
+      </button>
+    </div>
+  ) : null;
+  if (paged)
     return (
-      <div className="file-notice" role="alert">
-        {error}
-        <button
-          className="text-button"
-          onClick={() => setAttempt((i) => i + 1)}
-        >
-          重新读取
-        </button>
+      <div className="document-stack">
+        {kind === "sheet" && (
+          <div
+            className="preview-switch"
+            role="group"
+            aria-label="Excel 查看方式"
+          >
+            <button aria-pressed={!layout} onClick={() => setLayout(false)}>
+              工作表
+            </button>
+            <button aria-pressed={layout} onClick={() => setLayout(true)}>
+              打印版式
+            </button>
+          </div>
+        )}
+        <Suspense fallback={<p className="file-notice">正在加载预览…</p>}>
+          {grid ? (
+            <SheetPreview url={previewURL} />
+          ) : (
+            (failure ??
+            (bytes ? (
+              <PdfPreview buffer={bytes} slides={kind === "slides"} />
+            ) : (
+              <p className="file-notice" role="status">
+                {kind === "document" && ext(file.name) === "pdf"
+                  ? "正在读取 PDF…"
+                  : "正在生成分页预览…"}
+              </p>
+            )))
+          )}
+        </Suspense>
       </div>
     );
+  if (failure) return failure;
   if (kind === "other")
     return (
       <div className="file-notice">
@@ -151,6 +221,12 @@ function ArtifactPreview({
       </Suspense>
     );
   const text = new TextDecoder().decode(bytes);
+  if (kind === "html")
+    return (
+      <Suspense fallback={<p>正在读取页面…</p>}>
+        <HtmlPreview text={text} />
+      </Suspense>
+    );
   if (kind === "markdown")
     return (
       <section className="markdown-preview">
@@ -287,7 +363,7 @@ export function Artifacts({
             </a>
           </div>
           <ArtifactPreview
-            key={file.path}
+            key={[sid, file.path, file.size, file.modified_at].join("|")}
             sid={sid!}
             file={file}
             openFiles={select}
@@ -297,6 +373,11 @@ export function Artifacts({
         <div className="file-list">
           {files.map((f) => {
             const Icon = {
+              word: FileText,
+              sheet: Sheet,
+              slides: Presentation,
+              document: FileType2,
+              html: FileCode2,
               model: Box,
               image: FileImage,
               text: FileText,

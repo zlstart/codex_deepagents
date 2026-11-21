@@ -6,6 +6,8 @@ numpy
 openpyxl
 pandas
 pillow
+python-docx
+python-pptx
 rtree
 scipy
 shapely

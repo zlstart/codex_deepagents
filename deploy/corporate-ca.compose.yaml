@@ -1,5 +1,8 @@
 # Optional site trust for HTTPS behind an enterprise proxy.
 services:
+  preview-image:
+    build:
+      secrets: [corporate_ca]
   helper-image:
     build:
       secrets: [corporate_ca]

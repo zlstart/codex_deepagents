@@ -364,3 +364,14 @@
 .trace-tree .timeline-message {
   font-size: 15px;
 }
+.trace-id {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 11px;
+}
+.trace-id code { overflow-wrap: anywhere; user-select: all; }
+.trace-id .icon-button { width: 28px; height: 28px; }

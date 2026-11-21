@@ -38,3 +38,9 @@ uv run --locked --group eval python -m evals.live \
 `--followup <result.json>` 验收同一会话的恢复。该模式要求原运行终态为失败、原始执行树完整、全部指定产物已经通过独立校验；在这些条件满足时才提交一次简短的文件检查与总结请求。恢复报告保留原运行 ID、跟进运行 ID、两轮轨迹与 SHA-256，并确认产物保持一致。该结果单独计为多轮恢复。
 
 单独验证官方文档集成时，在测试实例显式开启 `FAMSUN_MCP_ENABLED=true`，运行 `python -m evals.harness_live --base-url http://127.0.0.1:8000 --output var/evals/docs.json`。第一轮要求通过 MCP 查找官方资料，第二轮仅使用已保存的会话和文件。普通验收任务使用默认配置即可。
+
+### 真实 Office 预览与单会话删除
+
+测试实例开启注册后，使用 `uv run --locked --group eval python -m evals.office_release --base-url http://127.0.0.1:8080` 创建新的验收账号，在 Docker 中提交三页演示文稿、中文周报、两张工作表和静态 HTML 的生成任务。命令打印临时私有登录文件的路径，供同机浏览器使用。请勿将该文件复制到仓库或测试报告。
+
+使用 `uv run --locked --group eval python -m evals.office_release --ticket /实际私有目录/login.json` 等待终态，独立读取真实产物、核对数据、通过预览 API 转换为 PDF 或按表读取。验收主机需要 Poppler 的 `pdfinfo`。再添加 `--delete --docker-container famsun-app-1` 会创建另一个带唯一标记的临时会话，用真实运行生成文件，核对清理前后的 SQLite 记录、图检查点和 Docker 卷数量。Office 会话保留用于浏览器验证。结果写入 `docs/testing/office-release.json`，也可用 `--output` 指定新报告路径。

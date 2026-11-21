@@ -1,5 +1,22 @@
 # FAMSUN Agent 部署与验收
 
+## 2026 年 11 月 21 日 · 会话删除、文件预览与本地 Langfuse
+
+本轮在 Linux 单节点的 Compose 工作台上复测。Office 验收通过产品 API 提交给真实第三方模型，浏览器使用普通账号访问实际生成的文件。Langfuse 使用本机独立项目，专用 FAMSUN 进程仅导出本轮追踪验收任务。
+
+| 验收对象 | 操作与结果 |
+| --- | --- |
+| 会话删除与隔离 | 模型在一次性会话生成标记文件。删除返回 204，原先的 1 个运行、17 个事件、14 个检查点、25 条检查点写入和 2 个持久卷均已清空。相邻会话的原文件 SHA-256 保持一致。浏览器另测取消确认、运行中删除被拒及删除后刷新。[API 与物理资源记录](testing/office-release.json) · [删除对话框](screenshots/session-delete.webp) |
+| 真实 Office 产物 | 同一次任务交付三页 PPTX、两页 DOCX、双工作表 XLSX 和静态 HTML。独立校验确认渠道明细、40 件受理、35 件办结和文件结构。实际浏览器打开四份文件，PPT 翻到第二页，HTML 呈现中文表格。运行记录包含 110 个事件、4 次工具失败，模型随后完成交付。已将 python-docx 和 python-pptx 加入沙箱，使用全新离线容器创建并重新读取 Word、PowerPoint 和 Excel。[幻灯片](screenshots/workspace-slides.webp) · [Word](screenshots/workspace-word.webp) · [Excel](screenshots/workspace-sheet.webp) · [HTML](screenshots/workspace-html.webp) |
+| 格式和范围 | 对 DOC/DOCX、PPT/PPTX、XLS/XLSX 的 12 页逐页独立提取文字并核对顺序。另验证 RTF、ODT、ODS、ODP、原生 PDF、旧版 Excel 日期、公式缓存、可见工作表、80 行分页和 48 列限制。真实二进制 Word 冷预览约 9.9 秒，缓存命中约 0.6 秒，数据来自本次 VFS 主机单次采样。[格式测试](../tests/test_office_formats.py) · [表格边界测试](../tests/test_sheet_bounds.py) |
+| 执行过程与界面 | 收起后只呈现已保存的最终答复及运行摘要。工具间发言、参数、结果、子智能体随过程折叠。覆盖流式增量先后到达、断线恢复、刷新、失败、取消、预算收尾和历史记录。桌面和手机均保留可读正文，系统要求减少透明度时改用实色。[收起效果](screenshots/trace-collapsed.webp) · [运行中](screenshots/live-trace-running.webp) · [手机工作台](screenshots/glass-mobile.webp) |
+| 五项真实通用任务 | 直接问答、备忘读写、CSV 汇总、会议行动清单及子智能体独立复核均通过，五次最终运行共 104 个事件，SSE 逐条匹配 SQLite 重播，文档 MCP 调用为 0。独立复核首轮的一条 Python 检查命令拆分等式时失败，模型修正后交付了正确内容；相同输入复测通过全部工具与产物断言，原始失败记录已保留。[分项结果](testing/workspace-observability-release.json) |
+| 本地 Langfuse | 实际登录 4.83.0 项目，运行一次带沙箱命令的计算，得到 12103。按 Trace ID 从 v2 observations API 读回 14 条记录，包括 2 次模型调用及 1 次工具调用，用户与会话标识一致，正文采集关闭。重启 Web 和 Worker 后同一 Trace 仍可检索。另以 OTLP 接收器验证并行子智能体和故障分支。[真实 Trace 界面](screenshots/langfuse-local-trace.webp) · [本地项目实测](../deploy/langfuse/verification.json) · [子智能体与错误导出](testing/langfuse-otel.json) |
+
+本轮在开启真实 Docker 测试时通过 **142 项 Python 测试**，在开启 Office 转换和实际 GLB 浏览器回放时通过 **15 项 Playwright Chromium 测试**。前端生产构建、Ruff 及部署镜像检查通过。
+
+本机使用 rootless Docker 和 VFS，沙箱功能验收显式放宽了缺少 cgroup 委派的检查。为节省 VFS 磁盘，本机 Langfuse 服务实际运行官方 amd64 镜像的合并文件系统，交付的 Compose 固定上游多架构镜像摘要。运维手册包括 HTTPS 接入、离线镜像准备和一致性备份步骤。本次验证了服务重启后的记录持久化，生产主机的配额、备份恢复和并发容量仍需按当地环境演练。[本地部署手册](../deploy/langfuse/README.md) · [部署预检](testing/document-preview-preflight.json)
+
 ## 2026 年 11 月 21 日 · 通用工作台与流式执行
 
 本次在同一台测试机上更新 Docker Compose，保留已有账户、SQLite 历史记录和工作区卷。使用真实 OpenAI 兼容模型 `qwen3.8-flash`，浏览器通过与产品相同的 HTTP 和 SSE 接口访问服务。

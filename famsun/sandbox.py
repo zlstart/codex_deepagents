@@ -27,6 +27,9 @@ LABEL = "io.famsun.sandbox=v1"
 MAX_FILE = 32 * 1024 * 1024
 MAX_OUTPUT = 1024 * 1024
 _LOCKS = [threading.RLock() for _ in range(64)]
+# The stripe for a sandbox ID protects its entry. Concurrent reads may run
+# together; deletion waits for reads already admitted on that exact session.
+_READERS: dict[str, set[threading.Event]] = {}
 _POLICY = [
     "--user",
     "10001:10001",
@@ -90,22 +93,65 @@ def _docker(*args, check=True, timeout=30):
     return result
 
 
+def _missing(kind, name, stderr):
+    # Fail closed on transport, permissions and driver errors. A generic
+    # "not found" in a daemon error is not proof that the resource is absent.
+    text = stderr.decode(errors="replace").strip().lower()
+    text = text.removeprefix("error response from daemon: ").removeprefix("error: ")
+    name = name.lower()
+    return text in {
+        f"no such {kind}: {name}",
+        f"no such object: {name}",
+        f"{kind} {name} not found",
+        f"get {name}: no such {kind}",
+    } or (kind == "image" and text == f"no such image: {name}:latest")
+
+
+def _inspect(kind, name, template):
+    result = _docker(kind, "inspect", "--format", template, name, check=False)
+    if not result.returncode:
+        return result.stdout.decode().strip()
+    if _missing(kind, name, result.stderr):
+        return None
+    raise RuntimeError(f"Docker {kind} lookup failed")
+
+
+def require_resource_limits():
+    info = _docker(
+        "info",
+        "--format",
+        "{{.CgroupDriver}} {{.MemoryLimit}} {{.CPUCfsQuota}} {{.PidsLimit}}",
+    )
+    caps = info.stdout.decode().strip().split()
+    if len(caps) != 4 or caps[0] == "none" or caps[1:] != ["true", "true", "true"]:
+        raise RuntimeError(
+            "Docker must enforce memory, CPU and PID limits for isolated execution"
+        )
+
+
 def _exists(kind, name):
-    result = _docker(kind, "inspect", name, check=False)
-    if result.returncode == 0:
-        return True
-    if b"no such" in result.stderr.lower() or b"not found" in result.stderr.lower():
-        return False
-    raise RuntimeError("Docker resource lookup failed")
+    return _inspect(kind, name, "present") is not None
 
 
 def _remove(kind, name):
-    if _exists(kind, name):
-        args = ["--force"] if kind == "container" else []
-        _docker(kind, "rm", *args, name)
+    labels = ".Config.Labels" if kind == "container" else ".Labels"
+    identity = ".Name" if kind == "volume" else ".Id"
+    template = (
+        "{{.Name}} {{" + identity + "}} {{index " + labels + ' "io.famsun.sandbox"}}'
+    )
+    metadata = _inspect(kind, name, template)
+    if metadata is None:
+        return
+    resource_name, identifier, *owner = metadata.split()
+    if (name not in (resource_name.lstrip("/"), identifier)) or owner != ["v1"]:
+        raise RuntimeError(f"Refusing to remove an unowned Docker {kind}")
+    args = ["--force"] if kind == "container" else []
+    result = _docker(kind, "rm", *args, identifier, check=False)
+    if result.returncode and not _missing(kind, identifier, result.stderr):
+        raise RuntimeError(f"Docker {kind} removal failed")
 
 
-def _capture(args, *, limit, timeout, data=None):
+def _capture(args, *, limit, timeout, data=None, stderr=subprocess.STDOUT):
     """Drain output without buffering or spooling unbounded sandbox output."""
     with tempfile.TemporaryFile() as source:
         if data is not None:
@@ -115,7 +161,7 @@ def _capture(args, *, limit, timeout, data=None):
             ["docker", *args],
             stdin=source,
             stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
+            stderr=stderr,
         ) as proc:
             assert proc.stdout is not None
             deadline = time.monotonic() + timeout
@@ -239,20 +285,7 @@ class DockerSandbox(BaseSandbox):
             if self._container_id:
                 return self._container_id
             if not self.allow_unenforced_cgroups:
-                info = _docker(
-                    "info",
-                    "--format",
-                    "{{.CgroupDriver}} {{.MemoryLimit}} {{.CPUCfsQuota}} {{.PidsLimit}}",
-                )
-                caps = info.stdout.decode().strip().split()
-                if (
-                    len(caps) != 4
-                    or caps[0] == "none"
-                    or caps[1:] != ["true", "true", "true"]
-                ):
-                    raise RuntimeError(
-                        "Docker must enforce memory, CPU and PID limits for isolated execution"
-                    )
+                require_resource_limits()
             self._clear_runtime()
             options = [
                 arg
@@ -361,9 +394,62 @@ class DockerSandbox(BaseSandbox):
 
     close = stop
 
+    def _remove_artifact_helpers(self):
+        # Older releases let Docker choose reader names. Match both the exact
+        # workspace mount and the helper contract, independently of image tag.
+        ids = (
+            _docker(
+                "container",
+                "ls",
+                "--all",
+                "--quiet",
+                "--no-trunc",
+                "--filter",
+                f"volume={self._volume}",
+                "--filter",
+                f"label={LABEL}",
+            )
+            .stdout.decode("ascii")
+            .split()
+        )
+        template = (
+            "{{json .Config.Cmd}}{{println}}{{json .Mounts}}{{println}}"
+            "{{.HostConfig.AutoRemove}} {{.HostConfig.NetworkMode}}"
+        )
+        for identifier in ids:
+            details = _inspect("container", identifier, template)
+            if details is None:
+                continue
+            command, mounts, policy = details.split("\n")
+            args = json.loads(command) or []
+            attached = json.loads(mounts) or []
+            is_reader = (
+                len(args) in (4, 5)
+                and args[:3]
+                == ["/usr/local/bin/python", "-I", "/opt/famsun/artifacts.py"]
+                and args[3] in ("list", "read")
+            )
+            if (
+                is_reader
+                and policy == "true none"
+                and len(attached) == 1
+                and attached[0].get("Type") == "volume"
+                and attached[0].get("Name") == self._volume
+                and attached[0].get("Destination") == "/workspace"
+                and attached[0].get("RW") is False
+            ):
+                _remove("container", identifier)
+
     def delete(self):
         with self._lock:
-            self.stop()
+            for reader in _READERS.get(self.id, ()):
+                reader.wait()
+            # Durable deletion covers the whole session. A handle's earlier
+            # stop() covers only one run, possibly before a later run existed.
+            self._stopped = True
+            self._clear_runtime()
+            self._cleaned = True
+            self._remove_artifact_helpers()
             for volume in (self._volume, self.id + "-home"):
                 _remove("volume", volume)
 
@@ -464,10 +550,25 @@ class DockerSandbox(BaseSandbox):
         return results
 
     def _artifacts(self, *args):
-        if not _exists("volume", self._volume):
-            if args[0] == "list":
-                return b"[]"
-            raise FileNotFoundError
+        with self._lock:
+            if not _exists("volume", self._volume):
+                if args[0] == "list":
+                    return b"[]"
+                raise FileNotFoundError
+            finished = threading.Event()
+            readers = _READERS.setdefault(self.id, set())
+            readers.add(finished)
+        try:
+            return self._read_volume(*args)
+        finally:
+            # A deleting thread holds the lock while waiting. Signal first.
+            finished.set()
+            with self._lock:
+                readers.remove(finished)
+                if not readers:
+                    del _READERS[self.id]
+
+    def _read_volume(self, *args):
         # Separate namespaces, immutable interpreter and no network. Even a
         # running agent cannot modify the reader or see its file descriptors.
         reader = f"{self.id}-reader-{uuid4().hex}"

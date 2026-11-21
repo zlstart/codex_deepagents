@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 from . import auth
 from .config import Settings
+from .preview import OFFICE, SHEETS, PreviewError, Previews
 from .runtime import Jobs
 from .store import ACTIVE, Busy, Conflict, Missing, SessionRevoked, Store
 
@@ -135,6 +136,8 @@ def create_app(settings=None, *, runner=None, sandbox_factory=None):
     auth_attempts = auth.RateLimit(30, 60)
     registrations = auth.RateLimit(8, 60)
     reads = asyncio.Semaphore(4)
+    previews = Previews(cfg)
+    preview_requests = asyncio.Semaphore(8)
     passwords = asyncio.Semaphore(2)
 
     def default_sandbox(**kwargs):
@@ -148,7 +151,11 @@ def create_app(settings=None, *, runner=None, sandbox_factory=None):
         return await run_agent(**kwargs)
 
     jobs = Jobs(
-        store, cfg, runner or default_runner, sandbox_factory or default_sandbox
+        store,
+        cfg,
+        runner or default_runner,
+        sandbox_factory or default_sandbox,
+        discard_previews=previews.discard_session,
     )
 
     @asynccontextmanager
@@ -166,7 +173,12 @@ def create_app(settings=None, *, runner=None, sandbox_factory=None):
             try:
                 yield
             finally:
-                await jobs.shutdown()
+                try:
+                    await jobs.shutdown()
+                finally:
+                    from .telemetry import shutdown_telemetry
+
+                    await shutdown_telemetry()
 
     app = FastAPI(
         title="FAMSUN Agent",
@@ -313,6 +325,16 @@ def create_app(settings=None, *, runner=None, sandbox_factory=None):
             user["id"], (payload.title.strip() if payload else "") or "新会话"
         )
 
+    @app.delete("/api/sessions/{sid}", status_code=204)
+    async def delete_session(sid: str, user=authorized):
+        if not await jobs.delete_session(user["id"], sid):
+            raise HTTPException(
+                503,
+                "会话已停止访问，部分数据待清理，服务会自动重试",
+                headers={"Retry-After": "30"},
+            )
+        return Response(status_code=204)
+
     @app.get("/api/sessions/{sid}/runs")
     def runs(sid: str, user=authorized):
         return store.runs(user["id"], sid)
@@ -427,7 +449,6 @@ def create_app(settings=None, *, runner=None, sandbox_factory=None):
         return await asyncio.to_thread(store.run, uid, sid, rid)
 
     async def read_workspace(uid, sid, path=None):
-        await asyncio.to_thread(store.own_session, uid, sid)
         from .sandbox import ArtifactTooLarge
 
         try:
@@ -449,7 +470,61 @@ def create_app(settings=None, *, runner=None, sandbox_factory=None):
 
     @app.get("/api/sessions/{sid}/files")
     async def files(sid: str, user=authorized):
-        return await read_workspace(user["id"], sid)
+        async with jobs.workspace_access(user["id"], sid):
+            return await read_workspace(user["id"], sid)
+
+    def validate_file_path(path):
+        parts = path.split("/")
+        if (
+            "\\" in path
+            or any(ord(char) < 32 or ord(char) == 127 for char in path)
+            or any(not part or part.startswith(".") for part in parts)
+        ):
+            raise HTTPException(400, "无效文件路径")
+
+    @app.get("/api/sessions/{sid}/preview")
+    async def preview(
+        sid: str,
+        path: str = Query(min_length=1, max_length=1024),
+        view: str = Query("layout", pattern="^(layout|sheet)$"),
+        sheet: int = Query(0, ge=0, le=1023),
+        offset: int = Query(0, ge=0, le=1_048_575),
+        user=authorized,
+    ):
+        validate_file_path(path)
+        await asyncio.to_thread(store.own_session, user["id"], sid)
+        name = PurePosixPath(path)
+        ext = name.suffix.lower().lstrip(".")
+        if ext not in OFFICE | {"pdf"} or (view == "sheet" and ext not in SHEETS):
+            raise HTTPException(415, "此文件类型没有相应的预览模式")
+        if view == "layout" and (sheet or offset):
+            raise HTTPException(422, "工作表参数仅用于表格视图")
+        if preview_requests.locked():
+            raise HTTPException(
+                429, "预览请求过多，请稍后重试", headers={"Retry-After": "3"}
+            )
+        async with jobs.workspace_access(user["id"], sid), preview_requests:
+            content = await read_workspace(user["id"], sid, path)
+            try:
+                result = await previews.get(
+                    user["id"], sid, content, ext, view, sheet, offset
+                )
+            except PreviewError as error:
+                headers = {"Retry-After": "3"} if error.status == 429 else {}
+                raise HTTPException(error.status, str(error), headers=headers) from None
+        output_ext, media = (
+            ("json", "application/json")
+            if view == "sheet"
+            else ("pdf", "application/pdf")
+        )
+        return Response(
+            content=result,
+            media_type=media,
+            headers={
+                "Content-Disposition": f"inline; filename*=UTF-8''{quote(name.stem + '.' + output_ext, safe='')}",
+                "Content-Security-Policy": "sandbox; default-src 'none'; frame-ancestors 'self'",
+            },
+        )
 
     @app.get("/api/sessions/{sid}/file")
     async def file(
@@ -458,14 +533,9 @@ def create_app(settings=None, *, runner=None, sandbox_factory=None):
         download: bool = False,
         user=authorized,
     ):
-        parts = path.split("/")
-        if (
-            "\\" in path
-            or any(ord(char) < 32 for char in path)
-            or any(not part or part.startswith(".") for part in parts)
-        ):
-            raise HTTPException(400, "无效文件路径")
-        content = await read_workspace(user["id"], sid, path)
+        validate_file_path(path)
+        async with jobs.workspace_access(user["id"], sid):
+            content = await read_workspace(user["id"], sid, path)
         name = PurePosixPath(path).name
         suffix = PurePosixPath(name).suffix.lower()
         mime = {".glb": "model/gltf-binary", ".gltf": "model/gltf+json"}.get(suffix)

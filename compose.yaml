@@ -1,5 +1,11 @@
 name: famsun
 services:
+  preview-image:
+    profiles: ["build"]
+    image: ${FAMSUN_PREVIEW_IMAGE:-famsun-preview:local}
+    build:
+      context: .
+      dockerfile: deploy/preview.Dockerfile
   helper-image:
     profiles: ["build"]
     image: ${FAMSUN_HELPER_IMAGE:-famsun-helper:local}
@@ -42,7 +48,14 @@ services:
       FAMSUN_PUBLIC_ORIGIN: ${FAMSUN_PUBLIC_ORIGIN:-}
       FAMSUN_SECURE_COOKIES: ${FAMSUN_SECURE_COOKIES:-true}
       FAMSUN_LLM_STREAMING: ${FAMSUN_LLM_STREAMING:-true}
+      FAMSUN_LLM_STREAM_USAGE: ${FAMSUN_LLM_STREAM_USAGE:-}
       FAMSUN_MCP_ENABLED: ${FAMSUN_MCP_ENABLED:-false}
+      FAMSUN_LANGFUSE_ENABLED: ${FAMSUN_LANGFUSE_ENABLED:-false}
+      FAMSUN_LANGFUSE_CAPTURE_CONTENT: ${FAMSUN_LANGFUSE_CAPTURE_CONTENT:-false}
+      LANGFUSE_BASE_URL: ${LANGFUSE_BASE_URL:-}
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY:-}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY:-}
+      FAMSUN_PREVIEW_IMAGE: ${FAMSUN_PREVIEW_IMAGE:-famsun-preview:local}
       FAMSUN_HELPER_IMAGE: ${FAMSUN_HELPER_IMAGE:-famsun-helper:local}
       FAMSUN_SANDBOX_IMAGE: ${FAMSUN_SANDBOX_IMAGE:-famsun-sandbox:local}
       FAMSUN_ALLOW_UNENFORCED_CGROUPS: ${FAMSUN_ALLOW_UNENFORCED_CGROUPS:-false}

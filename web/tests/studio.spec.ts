@@ -84,12 +84,17 @@ test("stream public model text before tools and final answer, replay while activ
   ).toHaveCount(1);
   await expect(page.getByRole("button", { name: "停止执行" })).toHaveCount(0);
   await page.reload();
+  await expect(page.locator(".trace-summary")).toHaveAttribute("aria-expanded", "false");
+  await expect(page.getByText(sentence, { exact: true })).toHaveCount(0);
+  await expect(page.locator(".timeline-message")).toHaveText("三个渠道销售合计 150 元。");
+  await expand(page.locator(".trace-summary"));
   await expect(page.getByText(sentence, { exact: true })).toBeVisible();
   await expect(
     page.getByText("三个渠道销售合计 150 元。", { exact: true }),
   ).toHaveCount(1);
   await page.getByRole("button", { name: "文件", exact: true }).click();
-  await page.getByRole("button", { name: /sales-summary.md/ }).click();
+  await page.getByRole("complementary", { name: "工作区文件" })
+    .getByRole("button", { name: /sales-summary\.md/ }).click();
   await expect(
     page.getByText("合计 150 元。", { exact: false }).last(),
   ).toBeVisible();
@@ -208,6 +213,8 @@ test("account, starters, history, three-level traces, safe artifact preview, int
   );
   await page.getByRole("button", { name: "全部文件" }).click();
   await page.getByRole("button", { name: /notes.html/ }).click();
+  await expect(page.frameLocator('iframe[title="HTML 静态页面"]').getByRole("heading", {name: "交付说明"})).toBeVisible();
+  await page.getByRole("button", {name: "源码", exact:true}).click();
   await expect(page.locator(".text-preview")).toContainText("<script>");
   expect(
     await page.evaluate(() => Reflect.get(window, "untrusted")),

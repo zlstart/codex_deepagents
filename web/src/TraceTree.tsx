@@ -10,6 +10,7 @@ import {
   CircleAlert,
   CircleDot,
   CircleStop,
+  Copy,
   Clock3,
   FilePenLine,
   FileSearch,
@@ -76,6 +77,27 @@ function StatusBadge({ status }: { status: string }) {
     </small>
   );
 }
+/** Keep only explicit disclosure choices, scoped to this tab and run. */
+function useDisclosure(key: string, initiallyOpen: boolean) {
+  const [open, setOpen] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem(key);
+      if (saved !== null) return saved === "1";
+    } catch {
+      // Private browsing may disable storage.
+    }
+    return initiallyOpen;
+  });
+  const toggle = () => {
+    setOpen(!open);
+    try {
+      sessionStorage.setItem(key, open ? "0" : "1");
+    } catch {
+      // The in-memory disclosure still works.
+    }
+  };
+  return [open, toggle] as const;
+}
 type OpenFile = (path: string) => void;
 function Prose({
   text,
@@ -117,7 +139,13 @@ function primaryArgument(item: Activity) {
     "subagent_type",
     "description",
   ]) {
-    if (typeof args[key] === "string") return args[key].trim().split("\n")[0];
+    const value = args[key];
+    if (typeof value === "string") {
+      const line = Array.from(value.trim().split("\n", 1)[0]);
+      return line.length > 100
+        ? line.slice(0, 100).join("") + "…"
+        : line.join("");
+    }
   }
   return "";
 }
@@ -269,7 +297,13 @@ function Details({ item }: { item: Activity }) {
             clipped={p.result_truncated}
           />
         )}
-      {p.error && <Field label="错误信息" value={p.error} />}
+      {p.error && (
+        <Field
+          label="错误信息"
+          value={p.error}
+          clipped={p.result === p.error && p.result_truncated}
+        />
+      )}
       {p.exit_code != null && (
         <div className={"trace-exit" + (p.exit_code === 0 ? "" : " is-error")}>
           退出码 <code>{p.exit_code}</code>
@@ -299,6 +333,7 @@ function groupActivities(items: Activity[]) {
   return groups;
 }
 type TimelineProps = {
+  disclosureKey: string;
   groups: Groups;
   openFiles: OpenFile;
   finalId?: string;
@@ -311,10 +346,12 @@ function ToolItem({
 }: TimelineProps & { item: Activity; level: number }) {
   const delegated = item.kind === "subagent";
   const children = timeline.groups.get(item.id) ?? [];
-  const [expanded, setExpanded] = useState(
+  const nodeKey = timeline.disclosureKey + "/" + item.id;
+  const [expanded, toggle] = useDisclosure(
+    nodeKey,
     delegated && (running(item.status) || !item.tool),
   );
-  const [showBrief, setShowBrief] = useState(false);
+  const [showBrief, toggleBrief] = useDisclosure(nodeKey + "/brief", false);
   const Icon = delegated
     ? Boxes
     : (toolNames[item.label]?.[1] ??
@@ -337,7 +374,7 @@ function ToolItem({
           className="node-toggle"
           aria-expanded={expandable ? expanded : undefined}
           disabled={!expandable}
-          onClick={() => setExpanded(!expanded)}
+          onClick={toggle}
         >
           <span className="trace-icon">
             <Icon size={15} aria-hidden />
@@ -367,7 +404,7 @@ function ToolItem({
                   type="button"
                   className="trace-brief-toggle"
                   aria-expanded={showBrief}
-                  onClick={() => setShowBrief(!showBrief)}
+                  onClick={toggleBrief}
                 >
                   {showBrief ? (
                     <ChevronDown size={13} />
@@ -382,12 +419,7 @@ function ToolItem({
               <Details item={item} />
             )}
             {children.length > 0 && level < 32 && (
-              <Timeline
-                {...timeline}
-                items={children}
-                level={level + 1}
-                expanded
-              />
+              <Timeline {...timeline} items={children} level={level + 1} />
             )}
           </div>
         )}
@@ -397,10 +429,9 @@ function ToolItem({
 }
 function Timeline({
   items,
-  expanded,
   level = 0,
   ...timeline
-}: TimelineProps & { items: Activity[]; expanded: boolean; level?: number }) {
+}: TimelineProps & { items: Activity[]; level?: number }) {
   return (
     <ol className="activity-list">
       {items.map((item) => {
@@ -415,7 +446,9 @@ function Timeline({
                 <Prose
                   text={text}
                   openFiles={timeline.openFiles}
-                  streaming={running(item.status)}
+                  streaming={
+                    running(item.status) && item.id !== timeline.finalId
+                  }
                 />
                 {item.textTruncated && item.id !== timeline.finalId && (
                   <small className="trace-note">此段文字已截断</small>
@@ -426,10 +459,9 @@ function Timeline({
               </li>
             );
           if (
-            expanded &&
-            (running(item.status) ||
-              item.status === "failed" ||
-              item.status === "cancelled")
+            running(item.status) ||
+            item.status === "failed" ||
+            item.status === "cancelled"
           )
             return (
               <li key={item.id} className="trace-model-state">
@@ -442,13 +474,38 @@ function Timeline({
             );
           return null;
         }
-        return expanded ? (
+        return (
           <ToolItem key={item.id} {...timeline} item={item} level={level} />
-        ) : null;
+        );
       })}
     </ol>
   );
 }
+// An interrupted run may save a separate budget summary beginning with a tool
+// preamble. Only a successful run can complete a truncated or replaying prefix.
+function finalSpeechId(
+  roots: Activity[],
+  run: Run,
+  observedStatus: string | null,
+) {
+  if (running(run.status) || !run.answer?.trim()) return;
+  const last = roots
+    .filter((item) => ["model", "tool", "subagent"].includes(item.kind))
+    .at(-1);
+  if (last?.kind !== "model" || last.hasToolCalls === true) return;
+  const replaying =
+    running(last.status) && (!observedStatus || running(observedStatus));
+  if (last.status !== "completed" && !replaying) return;
+
+  const text = last.text.trim();
+  const answer = run.answer.trim();
+  if (text === answer) return last.id;
+  if (run.status !== "completed") return;
+  if (last.hasToolCalls === false) return last.id;
+  if ((last.textTruncated || replaying) && text && answer.startsWith(text))
+    return last.id;
+}
+
 export default function TraceTree({
   run,
   openFiles,
@@ -456,9 +513,19 @@ export default function TraceTree({
   run: Run;
   openFiles: OpenFile;
 }) {
-  const [expanded, setExpanded] = useState(running(run.status));
+  const disclosureKey = "famsun.trace/" + run.session_id + "/" + run.id;
+  const [expanded, toggle] = useDisclosure(disclosureKey, running(run.status));
   const container = useRef<HTMLElement>(null);
   const [viewed, setViewed] = useState(false);
+  const [copyNotice, setCopyNotice] = useState("");
+  async function copyRunId() {
+    try {
+      await navigator.clipboard.writeText(run.id);
+      setCopyNotice("已复制");
+    } catch {
+      setCopyNotice("可选中编号手动复制");
+    }
+  }
   useEffect(() => {
     const node = container.current;
     if (!node || viewed) return;
@@ -478,56 +545,67 @@ export default function TraceTree({
     observer.observe(node);
     return () => observer.disconnect();
   }, [viewed]);
-  const { items, error, loaded, retry } = useRunActivity(
+  const { items, observedStatus, error, loaded, retry } = useRunActivity(
     run,
     viewed || expanded || running(run.status),
   );
   const groups = useMemo(() => groupActivities(items), [items]);
   const roots = groups.get(null) ?? [];
-  const lastModel = roots.filter((i) => i.kind === "model").at(-1);
-  const answer = run.answer?.trim();
-  const streamed = lastModel?.text.trim();
-  const finalId =
-    answer &&
-    lastModel &&
-    ((lastModel === roots.at(-1) &&
-      lastModel.hasToolCalls === false &&
-      run.status === "completed") ||
-      (streamed &&
-        (answer === streamed ||
-          (lastModel === roots.at(-1) && answer.startsWith(streamed)))))
-      ? lastModel.id
-      : undefined;
-  const current = running(run.status)
-    ? items
-        .filter((i) => !["run", "agent"].includes(i.kind) && running(i.status))
-        .at(-1)
-    : undefined;
+  const status =
+    running(run.status) && observedStatus !== "queued"
+      ? (observedStatus ?? run.status)
+      : run.status;
+  const answer = !running(run.status) && run.answer?.trim() ? run.answer : null;
+  const finalId = finalSpeechId(roots, run, observedStatus);
+  const liveLeaves: Activity[] = [];
+  let failed = 0;
+  for (const siblings of groups.values()) {
+    for (const item of siblings) {
+      const children = groups.get(item.id) ?? [];
+      if (
+        running(status) &&
+        running(item.status) &&
+        !children.some((child) => running(child.status))
+      ) {
+        liveLeaves.push(item);
+      }
+      if (
+        item.status === "failed" &&
+        !children.some((child) => child.status === "failed")
+      ) {
+        failed++;
+      }
+    }
+  }
+  const current = liveLeaves.reduce<Activity | undefined>(
+    (latest, item) => (!latest || item.seq > latest.seq ? item : latest),
+    undefined,
+  );
   const tools = items.filter((i) => i.kind === "tool");
-  const failed = tools.filter((i) => i.status === "failed").length;
   return (
     <section ref={container} className="trace-tree" aria-label="执行时间线">
       <button
         type="button"
         className="trace-summary"
         aria-expanded={expanded}
-        onClick={() => setExpanded(!expanded)}
+        onClick={toggle}
       >
         <ActivityIcon size={15} aria-hidden />
         <span>执行过程</span>
         {current ? (
           <span className="trace-current">
+            {liveLeaves.length > 1 && liveLeaves.length + " 项并行 · "}
             {current.kind === "model" ? "生成回复" : toolTitle(current)}
           </span>
         ) : (
-          tools.length > 0 && (
+          (expanded || running(status)) && tools.length > 0 && (
             <span className="trace-count">{tools.length} 次工具调用</span>
           )
         )}
-        {failed > 0 && (
+        {(expanded || running(status)) && failed > 0 && (
           <span className="trace-failed-count">{failed} 项失败</span>
         )}
-        <StatusBadge status={run.status} />
+        <StatusBadge status={status} />
         {expanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
       </button>
       {error && (
@@ -541,19 +619,28 @@ export default function TraceTree({
       {!loaded && expanded && !error && (
         <small className="trace-note">正在读取执行记录…</small>
       )}
-      {loaded && !roots.length && expanded && running(run.status) && (
+      {loaded && !roots.length && expanded && running(status) && (
         <small className="trace-note">等待执行事件…</small>
       )}
-      <Timeline
-        groups={groups}
-        items={roots}
-        openFiles={openFiles}
-        expanded={expanded}
-        finalId={finalId}
-        answer={run.answer}
-      />
-      {!finalId && run.answer && (
-        <Prose text={run.answer} openFiles={openFiles} />
+      {expanded && (
+        <Timeline
+          disclosureKey={disclosureKey}
+          groups={groups}
+          items={roots}
+          openFiles={openFiles}
+          finalId={finalId}
+          answer={answer}
+        />
+      )}
+      {answer && (!expanded || !finalId) && (
+        <Prose text={answer} openFiles={openFiles} />
+      )}
+      {expanded && (
+        <div className="trace-id">
+          <span>任务编号</span><code>{run.id}</code>
+          <button type="button" className="icon-button" aria-label="复制任务编号" title="复制任务编号" onClick={copyRunId}><Copy size={13} /></button>
+          <span role="status">{copyNotice}</span>
+        </div>
       )}
     </section>
   );

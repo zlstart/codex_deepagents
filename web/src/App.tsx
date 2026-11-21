@@ -11,10 +11,12 @@ import {
   MessageSquare,
   Plus,
   Square,
+  Trash2,
   UserRound,
   X,
 } from "lucide-react";
 import { Auth } from "./Auth";
+import { DeleteSessionDialog } from "./DeleteSessionDialog";
 import { AgentMark, Brand } from "./Brand";
 import { Artifacts } from "./Artifacts";
 import TraceTree, { statusText } from "./TraceTree";
@@ -126,6 +128,13 @@ function Workspace({
     [historyLoaded, setHistoryLoaded] = useState(false),
     [attempt, setAttempt] = useState(0),
     [reloading, setReloading] = useState(0);
+  const [deleteTarget, setDeleteTarget] = useState<Session | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+  const [notice, setNotice] = useState("");
+  const deleting = useRef<string | null>(null);
+  const newButton = useRef<HTMLButtonElement>(null);
+  const deleteOpener = useRef<HTMLButtonElement>(null);
   const input = useRef<HTMLTextAreaElement>(null),
     scroll = useRef<HTMLDivElement>(null),
     content = useRef<HTMLDivElement>(null),
@@ -178,6 +187,34 @@ function Workspace({
       });
     return () => c.abort();
   }, [storageKey, select, attempt]);
+  const forget = useCallback(
+    (id: string, message: string) => {
+      delete drafts.current[id];
+      pendingSends.current.delete(id);
+      const remaining = sessions.filter((session) => session.id !== id);
+      const index = sessions.findIndex((session) => session.id === id);
+      setSessions(remaining);
+      const wasActive = activeSid.current === id;
+      if (wasActive)
+        select(
+          remaining[Math.min(Math.max(index, 0), remaining.length - 1)]?.id ??
+            null,
+        );
+      setDeleteTarget((current) => (current?.id === id ? null : current));
+      setNotice(message);
+      requestAnimationFrame(() => {
+        if (wasActive || !newButton.current?.getClientRects().length)
+          input.current?.focus();
+        else newButton.current.focus();
+      });
+    },
+    [sessions, select],
+  );
+  useEffect(() => {
+    if (!notice) return;
+    const timer = setTimeout(() => setNotice(""), 7000);
+    return () => clearTimeout(timer);
+  }, [notice]);
   useEffect(() => {
     if (!sid) return;
     const c = new AbortController();
@@ -196,10 +233,17 @@ function Workspace({
           rows.some((r) => running(r.status)) ? 1100 : 7500,
         );
       } catch (e) {
-        if (!c.signal.aborted) {
-          setHistoryError(messageOf(e));
-          timer = setTimeout(sync, 3200);
+        if (c.signal.aborted) return;
+        if (
+          e instanceof HttpError &&
+          e.status === 404 &&
+          deleting.current !== sid
+        ) {
+          forget(sid, "此会话已删除。");
+          return;
         }
+        setHistoryError(messageOf(e));
+        timer = setTimeout(sync, 3200);
       }
     };
     sync();
@@ -207,7 +251,7 @@ function Workspace({
       c.abort();
       clearTimeout(timer);
     };
-  }, [sid, reloading]);
+  }, [sid, reloading, forget]);
   const runSignature = runs.map((r) => r.id + ":" + r.status).join(",");
   useEffect(() => {
     const viewport = scroll.current;
@@ -327,6 +371,41 @@ function Workspace({
       setBusy(false);
     }
   };
+  async function deleteSession() {
+    if (!deleteTarget || deleting.current || submitLock.current) return;
+    const id = deleteTarget.id;
+    deleting.current = id;
+    setDeleteBusy(true);
+    setDeleteError("");
+    try {
+      await request(scope(id), { method: "DELETE" });
+      forget(id, "会话已删除。");
+    } catch (error) {
+      if (error instanceof HttpError && error.status === 404) {
+        forget(id, "此会话已删除。");
+        return;
+      }
+      if (error instanceof HttpError && error.status === 409) {
+        setDeleteError("请先停止正在执行的任务，或等待任务结束后再删除会话。");
+        return;
+      }
+      if (error instanceof HttpError && error.status === 503) {
+        try {
+          const rows = await request<Session[]>("/api/sessions");
+          if (rows.every((row) => row.id !== id)) {
+            forget(id, "会话已移除，工作区正在后台清理。");
+            return;
+          }
+        } catch {
+          /* The service is unavailable; keep the confirmation available for retry. */
+        }
+      }
+      setDeleteError(messageOf(error));
+    } finally {
+      deleting.current = null;
+      setDeleteBusy(false);
+    }
+  }
   const current = sessions.find((s) => s.id === sid),
     active = runs.find((r) => running(r.status));
   const logout = async () => {
@@ -366,6 +445,7 @@ function Workspace({
           </button>
         </div>
         <button
+          ref={newButton}
           className="primary new-session"
           onClick={newSession}
           disabled={busy || !sessionsLoaded}
@@ -376,20 +456,39 @@ function Workspace({
         <div className="nav-heading">会话记录</div>
         <nav>
           {sessions.map((s) => (
-            <button
-              className={"session-item" + (s.id === sid ? " selected" : "")}
+            <div
               key={s.id}
-              title={sessionTitle(s.title)}
-              aria-current={s.id === sid ? "page" : undefined}
-              disabled={busy}
-              onClick={() => {
-                if (s.id !== sid) select(s.id);
-                else setNav(false);
-              }}
+              className={"session-row" + (s.id === sid ? " current" : "")}
             >
-              <MessageSquare size={15} />
-              <span>{sessionTitle(s.title)}</span>
-            </button>
+              <button
+                className={"session-item" + (s.id === sid ? " selected" : "")}
+                title={sessionTitle(s.title)}
+                aria-current={s.id === sid ? "page" : undefined}
+                disabled={busy}
+                onClick={() => {
+                  if (s.id !== sid) select(s.id);
+                  else setNav(false);
+                }}
+              >
+                <MessageSquare size={15} />
+                <span>{sessionTitle(s.title)}</span>
+              </button>
+              <button
+                type="button"
+                className="icon-button session-delete"
+                aria-label={"删除会话：" + sessionTitle(s.title)}
+                title="删除会话"
+                disabled={busy}
+                aria-haspopup="dialog"
+                onClick={(event) => {
+                  deleteOpener.current = event.currentTarget;
+                  setDeleteError("");
+                  setDeleteTarget(s);
+                }}
+              >
+                <Trash2 size={15} />
+              </button>
+            </div>
           ))}
         </nav>
         {!sessions.length && (
@@ -514,48 +613,50 @@ function Workspace({
                 </div>
               )}
               <form className="composer" onSubmit={submit}>
-                <textarea
-                  rows={2}
-                  ref={input}
-                  aria-label="任务描述"
-                  maxLength={16000}
-                  value={draft}
-                  onChange={(e) => edit(e.target.value)}
-                  placeholder="描述你想完成的事…"
-                  onKeyDown={(e) => {
-                    if (
-                      e.key === "Enter" &&
-                      (e.metaKey || e.ctrlKey) &&
-                      !e.nativeEvent.isComposing
-                    ) {
-                      e.preventDefault();
-                      submit();
-                    }
-                  }}
-                />
-                <div className="composer-actions">
-                  <span className="shortcut">Ctrl / ⌘ + Enter</span>
-                  {active ? (
-                    <button
-                      type="button"
-                      className="send stop"
-                      title="停止执行"
-                      aria-label="停止执行"
-                      disabled={busy}
-                      onClick={() => cancel(active)}
-                    >
-                      <Square size={15} />
-                    </button>
-                  ) : (
-                    <button
-                      className="send"
-                      title="发送任务"
-                      aria-label="发送任务"
-                      disabled={blocked || !draft.trim()}
-                    >
-                      <ArrowUp size={19} />
-                    </button>
-                  )}
+                <div className="composer-sheet">
+                  <textarea
+                    rows={2}
+                    ref={input}
+                    aria-label="任务描述"
+                    maxLength={16000}
+                    value={draft}
+                    onChange={(e) => edit(e.target.value)}
+                    placeholder="描述你想完成的事…"
+                    onKeyDown={(e) => {
+                      if (
+                        e.key === "Enter" &&
+                        (e.metaKey || e.ctrlKey) &&
+                        !e.nativeEvent.isComposing
+                      ) {
+                        e.preventDefault();
+                        submit();
+                      }
+                    }}
+                  />
+                  <div className="composer-actions">
+                    <span className="shortcut">Ctrl / ⌘ + Enter</span>
+                    {active ? (
+                      <button
+                        type="button"
+                        className="send stop"
+                        title="停止执行"
+                        aria-label="停止执行"
+                        disabled={busy}
+                        onClick={() => cancel(active)}
+                      >
+                        <Square size={15} />
+                      </button>
+                    ) : (
+                      <button
+                        className="send"
+                        title="发送任务"
+                        aria-label="发送任务"
+                        disabled={blocked || !draft.trim()}
+                      >
+                        <ArrowUp size={19} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               </form>
               {empty && (
@@ -570,6 +671,23 @@ function Workspace({
           </div>
         </main>
       </div>
+      {notice && (
+        <div className="session-notice" role="status">
+          {notice}
+        </div>
+      )}
+      {deleteTarget && (
+        <DeleteSessionDialog
+          title={sessionTitle(deleteTarget.title)}
+          error={deleteError}
+          busy={deleteBusy}
+          onCancel={() => {
+            setDeleteTarget(null);
+            requestAnimationFrame(() => deleteOpener.current?.focus());
+          }}
+          onConfirm={deleteSession}
+        />
+      )}
       {files && (
         <Artifacts
           key={sid || "draft"}

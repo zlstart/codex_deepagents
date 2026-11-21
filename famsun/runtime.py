@@ -2,7 +2,7 @@
 
 import asyncio
 import logging
-from contextlib import contextmanager
+from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 
@@ -27,13 +27,17 @@ class Job:
 
 
 class Jobs:
-    def __init__(self, store, settings, runner, sandbox_factory):
+    def __init__(self, store, settings, runner, sandbox_factory, *, discard_previews):
         self.store = store
         self.settings = settings
         self.runner = runner
         self.sandbox_factory = sandbox_factory
         self.tasks = {}
         self.subscribers = {}
+        self.deletions = {}
+        self.delete_slots = asyncio.Semaphore(2)
+        self.workspace_requests = {}
+        self.discard_previews = discard_previews
         self.reaper = None
 
     @contextmanager
@@ -66,6 +70,62 @@ class Jobs:
             log.exception("Sandbox cleanup pending for session %s", sid)
             return False
 
+    @asynccontextmanager
+    async def workspace_access(self, uid, sid):
+        # Register before checking the DB: when the tombstone commits, every
+        # operation that passed ownership is already visible to the deleter.
+        key = (uid, sid)
+        requests = self.workspace_requests.setdefault(key, set())
+        finished = asyncio.Event()
+        requests.add(finished)
+        try:
+            await asyncio.to_thread(self.store.own_session, uid, sid)
+            yield
+        finally:
+            finished.set()
+            requests.discard(finished)
+            if not requests:
+                self.workspace_requests.pop(key, None)
+
+    def _schedule_deletion(self, uid, sid):
+        if task := self.deletions.get(sid):
+            return task
+        task = asyncio.create_task(
+            self._delete_marked(uid, sid), name=f"famsun-delete-{sid}"
+        )
+        self.deletions[sid] = task
+        task.add_done_callback(lambda _: self.deletions.pop(sid, None))
+        return task
+
+    async def delete_session(self, uid, sid):
+        # Always check ownership in SQLite before joining an in-flight task.
+        await asyncio.to_thread(self.store.mark_for_deletion, uid, sid)
+        return await asyncio.shield(self._schedule_deletion(uid, sid))
+
+    async def _delete_marked(self, uid, sid):
+        from .session_checkpoints import remove_session_checkpoints
+
+        try:
+            async with self.delete_slots:
+                # A completed HTTP retry can race the recovery scan's snapshot.
+                if not await asyncio.to_thread(
+                    self.store.deletion_is_pending, uid, sid
+                ):
+                    return True
+                readers = tuple(self.workspace_requests.get((uid, sid), ()))
+                if readers:
+                    await asyncio.gather(*(reader.wait() for reader in readers))
+                await self.discard_previews(uid, sid)
+                await asyncio.to_thread(self.box(uid, sid).delete)
+                await remove_session_checkpoints(
+                    self.settings.checkpoint_path, uid, sid
+                )
+                await asyncio.to_thread(self.store.finalize_deletion, uid, sid)
+            return True
+        except Exception as exc:  # noqa: BLE001 - retain the durable tombstone for retry.
+            log.error("Session deletion pending for %s (%s)", sid, type(exc).__name__)
+            return False
+
     async def recover(self):
         await asyncio.to_thread(self.store.recovery)
         # Unclean shutdowns leave a durable cleanup marker. Block further runs
@@ -74,6 +134,8 @@ class Jobs:
         self.reaper = asyncio.create_task(self._reap_periodically())
 
     async def reap_idle(self):
+        for row in await asyncio.to_thread(self.store.pending_deletions):
+            self._schedule_deletion(row["user_id"], row["id"])
         for row in await asyncio.to_thread(self.store.pending_cleanup):
             sid = row["id"]
             if any(job.session_id == sid for job in self.tasks.values()):
@@ -112,6 +174,7 @@ class Jobs:
             self.reaper.cancel()
             await asyncio.gather(self.reaper, return_exceptions=True)
         await asyncio.gather(*(self.cancel(rid) for rid in tuple(self.tasks)))
+        await asyncio.gather(*tuple(self.deletions.values()))
 
     async def _execute(self, uid, sid, run, job):
         rid = run["id"]

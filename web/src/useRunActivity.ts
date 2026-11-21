@@ -11,6 +11,7 @@ export type Activity = Trace & {
 
 /** Replay immutable rows in cursor order. The map retains each item's insertion order. */
 export function useRunActivity(run: Run, enabled: boolean) {
+  const [observedStatus, setObservedStatus] = useState<string | null>(null);
   const [items, setItems] = useState<Activity[]>([]);
   const [error, setError] = useState("");
   const [loaded, setLoaded] = useState(false);
@@ -28,12 +29,14 @@ export function useRunActivity(run: Run, enabled: boolean) {
     let nextStreamAttempt = 0;
     setItems([]);
     setLoaded(false);
+    setObservedStatus(null);
     setError("");
 
     function append(rows: Trace[]) {
       let changed = false;
       for (const row of rows) {
         if (!Number.isSafeInteger(row.seq) || row.seq <= cursor) continue;
+        if (row.kind === "run") setObservedStatus(row.status);
         const previous = byId.get(row.id);
         const delta = row.payload?.type === "model_text" ? row.payload : null;
         byId.set(row.id, {
@@ -122,6 +125,7 @@ export function useRunActivity(run: Run, enabled: boolean) {
           append(page.events);
           if (cursor === before) break;
         } while (page.has_more ?? page.events.length === 500);
+        setObservedStatus(page.status);
         setError("");
         if (running(page.status)) connect();
       } catch (cause) {
@@ -150,5 +154,5 @@ export function useRunActivity(run: Run, enabled: boolean) {
   useEffect(() => {
     if (!running(run.status)) sync.current();
   }, [run.status]);
-  return { items, error, loaded, retry: () => sync.current() };
+  return { items, observedStatus, error, loaded, retry: () => sync.current() };
 }

@@ -1,0 +1,46 @@
+{
+  "validated_at_utc": "2026-11-21T11:32:13+00:00",
+  "langfuse_health": {
+    "status": "OK",
+    "version": "4.83.0"
+  },
+  "sdk": "langfuse 5.2.0",
+  "api": "GET /api/public/v2/observations",
+  "project": "FAMSUN Agent",
+  "loopback_ui": "http://localhost:3000",
+  "compose_version": "2.40.3",
+  "validation_storage_driver": "vfs",
+  "validation_image_layout": "Original published amd64 root filesystems and runtime settings, flattened locally to reduce VFS copy amplification. Production Compose pins the original six OCI manifest lists.",
+  "famsun_test_isolation": "Host .venv + Uvicorn at 127.0.0.1:8195, temporary SQLite, a new test identity, real tool-capable model, real isolated Docker sandbox (famsun-sandbox:local). The shared 8080 FAMSUN deployment was not used. The host required FAMSUN_ALLOW_UNENFORCED_CGROUPS=true for its test sandbox.",
+  "browser": "Chromium, signed into the local project after web and worker restart; opened the matching trace tree.",
+  "trace_id": "62c9e721fee03c59c9c6bac40da3545e",
+  "name": "FAMSUN Agent",
+  "run_id": "9e94c407bc7b43f28043a1118e254936",
+  "status": "completed",
+  "observation_types": {
+    "AGENT": 5,
+    "GENERATION": 2,
+    "CHAIN": 6,
+    "TOOL": 1
+  },
+  "observation_count": 14,
+  "trace_has_content": false,
+  "observations_have_content": false,
+  "famsun_status": "completed",
+  "verified_result": 12103,
+  "famsun_completed_tools": [
+    "execute"
+  ],
+  "capture_content": false,
+  "web_worker_restart_verified": true,
+  "container_network_check": {
+    "client": "One-shot famsun-helper:local container on famsun-observability",
+    "endpoint": "http://langfuse-web:3000/api/public/health",
+    "http_status": 200,
+    "response": {
+      "status": "OK",
+      "version": "4.83.0"
+    },
+    "no_proxy": "Set uppercase and lowercase proxy exceptions for langfuse-web. The unconfigured enterprise HTTP proxy returned 403 on the public health probe."
+  }
+}

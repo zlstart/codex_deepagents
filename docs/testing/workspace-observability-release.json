@@ -1,0 +1,295 @@
+{
+  "suite": "general-workspace",
+  "transport": "authenticated HTTP + SSE",
+  "cases": {
+    "direct": [
+      {
+        "started": "2026-11-21T11:33:13+00:00",
+        "title": "直接问答",
+        "passed": true,
+        "checks": {
+          "tree_and_terminal_states": true,
+          "has_public_model_delta": true,
+          "no_docs_mcp": true,
+          "all_tools_completed": true,
+          "direct_without_tools": true,
+          "sse_matches_sqlite_replay": true,
+          "run_completed": true,
+          "answer_present": true,
+          "answer_value_and_unit": true
+        },
+        "status": "completed",
+        "trace": {
+          "events": 8,
+          "nodes": 3,
+          "maximum_depth": 3,
+          "model_chunks": 1,
+          "model_text_characters": 4,
+          "docs_mcp_invocations": 0,
+          "tool_counts": {},
+          "structured_argument_counts": {},
+          "structured_result_counts": {},
+          "unsuccessful_tools": {}
+        },
+        "finished": "2026-11-21T11:33:39+00:00",
+        "duration_seconds": 26.27
+      }
+    ],
+    "note": [
+      {
+        "started": "2026-11-21T11:33:13+00:00",
+        "title": "文本备忘",
+        "passed": true,
+        "checks": {
+          "tree_and_terminal_states": true,
+          "has_public_model_delta": true,
+          "no_docs_mcp": true,
+          "all_tools_completed": true,
+          "structured_arguments_and_results": true,
+          "sse_matches_sqlite_replay": true,
+          "run_completed": true,
+          "answer_present": true,
+          "file_listed": true,
+          "independent_file_check": true
+        },
+        "status": "completed",
+        "trace": {
+          "events": 16,
+          "nodes": 7,
+          "maximum_depth": 3,
+          "model_chunks": 1,
+          "model_text_characters": 8,
+          "docs_mcp_invocations": 0,
+          "tool_counts": {
+            "write_file": 1,
+            "read_file": 1
+          },
+          "structured_argument_counts": {
+            "write_file": 1,
+            "read_file": 1
+          },
+          "structured_result_counts": {
+            "write_file": 1,
+            "read_file": 1
+          },
+          "unsuccessful_tools": {}
+        },
+        "artifact": {
+          "file": "memo.txt",
+          "bytes": 30,
+          "sha256": "398ac8e9e5607b0161a72fc0d79b50741e5750955e1dc061894cd3b44a252812"
+        },
+        "finished": "2026-11-21T11:33:46+00:00",
+        "duration_seconds": 33.23
+      }
+    ],
+    "csv": [
+      {
+        "started": "2026-11-21T11:33:39+00:00",
+        "title": "CSV 汇总",
+        "passed": true,
+        "checks": {
+          "tree_and_terminal_states": true,
+          "has_public_model_delta": true,
+          "no_docs_mcp": true,
+          "all_tools_completed": true,
+          "structured_arguments_and_results": true,
+          "sse_matches_sqlite_replay": true,
+          "run_completed": true,
+          "answer_present": true,
+          "file_listed": true,
+          "independent_file_check": true
+        },
+        "status": "completed",
+        "trace": {
+          "events": 13,
+          "nodes": 5,
+          "maximum_depth": 3,
+          "model_chunks": 2,
+          "model_text_characters": 28,
+          "docs_mcp_invocations": 0,
+          "tool_counts": {
+            "execute": 1
+          },
+          "structured_argument_counts": {
+            "execute": 1
+          },
+          "structured_result_counts": {
+            "execute": 1
+          },
+          "unsuccessful_tools": {}
+        },
+        "artifact": {
+          "file": "summary.csv",
+          "bytes": 33,
+          "sha256": "7a39050a0b2feb01b8425ca2130190e3926483d0da71104d01360c53c213a006"
+        },
+        "finished": "2026-11-21T11:33:57+00:00",
+        "duration_seconds": 18.19
+      }
+    ],
+    "actions": [
+      {
+        "started": "2026-11-21T11:33:46+00:00",
+        "title": "会议行动清单",
+        "passed": true,
+        "checks": {
+          "tree_and_terminal_states": true,
+          "has_public_model_delta": true,
+          "no_docs_mcp": true,
+          "all_tools_completed": true,
+          "structured_arguments_and_results": true,
+          "sse_matches_sqlite_replay": true,
+          "run_completed": true,
+          "answer_present": true,
+          "file_listed": true,
+          "independent_file_check": true
+        },
+        "status": "completed",
+        "trace": {
+          "events": 20,
+          "nodes": 7,
+          "maximum_depth": 3,
+          "model_chunks": 5,
+          "model_text_characters": 136,
+          "docs_mcp_invocations": 0,
+          "tool_counts": {
+            "write_file": 1,
+            "read_file": 1
+          },
+          "structured_argument_counts": {
+            "write_file": 1,
+            "read_file": 1
+          },
+          "structured_result_counts": {
+            "write_file": 1,
+            "read_file": 1
+          },
+          "unsuccessful_tools": {}
+        },
+        "artifact": {
+          "file": "actions.md",
+          "bytes": 150,
+          "sha256": "77290b06f4df5a7a9d045da17a3ca70b091a3651c0217f4d9ed300eef0245ea6"
+        },
+        "finished": "2026-11-21T11:34:08+00:00",
+        "duration_seconds": 21.77
+      }
+    ],
+    "review": [
+      {
+        "started": "2026-11-21T11:33:57+00:00",
+        "title": "独立复核",
+        "passed": false,
+        "checks": {
+          "tree_and_terminal_states": true,
+          "has_public_model_delta": true,
+          "no_docs_mcp": true,
+          "all_tools_completed": false,
+          "structured_arguments_and_results": true,
+          "reviewer_read_in_child_branch": true,
+          "sse_matches_sqlite_replay": true,
+          "run_completed": true,
+          "answer_present": true,
+          "file_listed": true,
+          "independent_file_check": true
+        },
+        "status": "completed",
+        "trace": {
+          "events": 71,
+          "nodes": 14,
+          "maximum_depth": 4,
+          "model_chunks": 42,
+          "model_text_characters": 1018,
+          "docs_mcp_invocations": 0,
+          "tool_counts": {
+            "write_file": 1,
+            "reviewer": 1,
+            "read_file": 1,
+            "execute": 2
+          },
+          "structured_argument_counts": {
+            "write_file": 1,
+            "reviewer": 1,
+            "read_file": 1,
+            "execute": 2
+          },
+          "structured_result_counts": {
+            "write_file": 1,
+            "read_file": 1,
+            "execute": 2,
+            "reviewer": 1
+          },
+          "unsuccessful_tools": {
+            "execute": 1
+          }
+        },
+        "artifact": {
+          "file": "check.txt",
+          "bytes": 12,
+          "sha256": "1569c6fcbcfaf7747ad2a4127b679ed9dc7fe4fe7ecf081b113885f0b3a9c200"
+        },
+        "finished": "2026-11-21T11:34:54+00:00",
+        "duration_seconds": 56.93
+      },
+      {
+        "started": "2026-11-21T11:36:48+00:00",
+        "title": "独立复核",
+        "passed": true,
+        "checks": {
+          "tree_and_terminal_states": true,
+          "has_public_model_delta": true,
+          "no_docs_mcp": true,
+          "all_tools_completed": true,
+          "structured_arguments_and_results": true,
+          "reviewer_read_in_child_branch": true,
+          "sse_matches_sqlite_replay": true,
+          "run_completed": true,
+          "answer_present": true,
+          "file_listed": true,
+          "independent_file_check": true
+        },
+        "status": "completed",
+        "trace": {
+          "events": 47,
+          "nodes": 13,
+          "maximum_depth": 4,
+          "model_chunks": 20,
+          "model_text_characters": 721,
+          "docs_mcp_invocations": 0,
+          "tool_counts": {
+            "write_file": 1,
+            "reviewer": 1,
+            "ls": 1,
+            "read_file": 1,
+            "execute": 1
+          },
+          "structured_argument_counts": {
+            "write_file": 1,
+            "reviewer": 1,
+            "ls": 1,
+            "read_file": 1,
+            "execute": 1
+          },
+          "structured_result_counts": {
+            "write_file": 1,
+            "read_file": 1,
+            "ls": 1,
+            "execute": 1,
+            "reviewer": 1
+          },
+          "unsuccessful_tools": {}
+        },
+        "artifact": {
+          "file": "check.txt",
+          "bytes": 12,
+          "sha256": "1569c6fcbcfaf7747ad2a4127b679ed9dc7fe4fe7ecf081b113885f0b3a9c200"
+        },
+        "finished": "2026-11-21T11:37:38+00:00",
+        "duration_seconds": 49.8
+      }
+    ]
+  },
+  "passed_cases": 5,
+  "total_cases": 5
+}

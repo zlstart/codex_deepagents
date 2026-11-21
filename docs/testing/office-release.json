@@ -1,0 +1,152 @@
+{
+  "office": {
+    "status": "completed",
+    "trace_events": 110,
+    "successful_tools": [
+      "edit_file",
+      "execute",
+      "ls",
+      "read_file",
+      "write_file"
+    ],
+    "tool_failures": [
+      {
+        "tool": "execute",
+        "exit_code": 127,
+        "diagnosis": "package unavailable during import check"
+      },
+      {
+        "tool": "execute",
+        "exit_code": 2,
+        "diagnosis": "installation targeted read-only system Python"
+      },
+      {
+        "tool": "execute",
+        "exit_code": 1,
+        "diagnosis": "agent's document validation command exited nonzero"
+      },
+      {
+        "tool": "execute",
+        "exit_code": 1,
+        "diagnosis": "agent's document validation command exited nonzero"
+      }
+    ],
+    "artifacts": {
+      "briefing.pptx": {
+        "listed": true,
+        "passed": true,
+        "bytes": 34210,
+        "sha256": "96a27e8f66ac1c3e1b07afbba00c4ae329a12ee94714a535a260935ea53aeb2e",
+        "structure": {
+          "three_slides": true,
+          "chinese_weekly_report": true,
+          "all_channels": true
+        },
+        "preview": {
+          "pdf_response": true,
+          "renders_expected_pages": true,
+          "page_count": 3
+        }
+      },
+      "brief.docx": {
+        "listed": true,
+        "passed": true,
+        "bytes": 38600,
+        "sha256": "349878b6802e3e2d0316803a0a95186653a6c855140bbd34ee7d443342a7093f",
+        "structure": {
+          "has_table": true,
+          "chinese_report_and_channels": true,
+          "data_totals": true
+        },
+        "preview": {
+          "pdf_response": true,
+          "renders_expected_pages": true,
+          "page_count": 2
+        }
+      },
+      "channels.xlsx": {
+        "listed": true,
+        "passed": true,
+        "bytes": 7232,
+        "sha256": "d18a92e67a0a5211923b841a23ca430dd8fc4d9b77195eae2a898ccd5e36c6a6",
+        "structure": {
+          "sheet_names": true
+        },
+        "preview": {
+          "detail_values": true,
+          "totals_on_second_sheet": true
+        }
+      },
+      "report.html": {
+        "listed": true,
+        "passed": true,
+        "bytes": 7731,
+        "sha256": "45319f078317e0bd456c046130b764f9e478ce47c2ea062103f5e4948c9e1dcd",
+        "structure": {
+          "heading_and_table": true,
+          "channels_and_totals": true,
+          "standalone_static": true
+        },
+        "preview": {
+          "downloadable_html": true
+        }
+      }
+    },
+    "passed": true
+  },
+  "checked_at": "2026-11-21T11:32:45+00:00",
+  "passed": true,
+  "qa_run_sha256": "ff8121299dd49ac82ffa0cb898e885e3baa309e18c7aaa8be18ab9ee98108de1",
+  "complete": true,
+  "session_deletion": {
+    "passed": true,
+    "checks": {
+      "owner_verified": true,
+      "retained_session_exists": true,
+      "target_created_here": true,
+      "valid_run_identity": true,
+      "durable_run_completed": true,
+      "marker_matches": true,
+      "database_rows_seeded": true,
+      "graph_rows_seeded": true,
+      "both_volumes_tagged": true,
+      "target_and_sibling_reconfirmed": true,
+      "delete_acknowledged": true,
+      "only_target_disappeared": true,
+      "runs_unavailable": true,
+      "run_detail_unavailable": true,
+      "events_unavailable": true,
+      "files_unavailable": true,
+      "marker_unavailable": true,
+      "all_target_rows_and_volumes_removed": true,
+      "retained_report_hash_unchanged": true
+    },
+    "physical": {
+      "verified": true,
+      "before": {
+        "sessions": 1,
+        "runs": 1,
+        "events": 17,
+        "request_keys": 1,
+        "cleanup": 0,
+        "checkpoints": 14,
+        "writes": 25,
+        "volumes": 2,
+        "tagged_volumes": 2
+      },
+      "after": {
+        "sessions": 0,
+        "runs": 0,
+        "events": 0,
+        "request_keys": 0,
+        "cleanup": 0,
+        "checkpoints": 0,
+        "writes": 0,
+        "volumes": 0,
+        "tagged_volumes": 0
+      }
+    },
+    "delete_http_status": 204,
+    "duration_seconds": 46.44
+  }
+}

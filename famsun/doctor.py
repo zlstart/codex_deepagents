@@ -62,7 +62,15 @@ async def inspect(*, live_model: bool, strict: bool) -> dict:
         helper = docker(
             "image", "inspect", "--format", "{{.Id}}", settings.helper_image
         )
-        return {"engine": version, "sandbox_image_id": image, "helper_image_id": helper}
+        preview = docker(
+            "image", "inspect", "--format", "{{.Id}}", settings.preview_image
+        )
+        return {
+            "engine": version,
+            "sandbox_image_id": image,
+            "helper_image_id": helper,
+            "preview_image_id": preview,
+        }
 
     async def model():
         if not settings.llm_model or not settings.llm_api_key:

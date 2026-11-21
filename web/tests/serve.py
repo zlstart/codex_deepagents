@@ -6,9 +6,11 @@ import os
 import struct
 import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 import uvicorn
 
+from famsun import auth
 from famsun.api import create_app
 from famsun.config import Settings
 
@@ -56,6 +58,9 @@ class Workspace:
 
     def stop(self):
         pass
+
+    def delete(self):
+        self.files.clear()
 
     def list_artifacts(self):
         return [
@@ -180,6 +185,29 @@ async def streamed_report(run_id, emit, sandbox):
 
 
 async def runner(*, prompt, sandbox, emit, run_id, **kwargs):
+    if prompt == "常见文件预览验收":
+        import mimetypes
+        from zipfile import ZipFile
+
+        directory = Path(__file__).resolve().parents[2] / "tests/fixtures"
+        with ZipFile(directory / "office-formats.zip") as samples:
+            for name in samples.namelist():
+                sandbox.files[name] = (
+                    samples.read(name),
+                    mimetypes.guess_type(name)[0] or "application/octet-stream",
+                )
+        sandbox.files["report.pdf"] = (
+            (directory / "report.pdf").read_bytes(),
+            "application/pdf",
+        )
+        sandbox.files["report.html"] = (
+            "<!doctype html><html><head><style>h1{color:rgb(138,59,17)}</style></head>"
+            "<body><h1>渠道报告</h1><table><tr><td>3500 元</td></tr></table>"
+            '<img src="https://example.org/cover.jpg" alt="封面">'
+            '<script>document.title = "interactive"</script></body></html>'.encode(),
+            "text/html",
+        )
+        return "验收文件已就绪。"
     if prompt == "检查失败的工具调用":
         for index, name, code, output in [
             (1, "missing.csv", 2, "missing.csv: not found"),
@@ -262,7 +290,7 @@ async def runner(*, prompt, sandbox, emit, run_id, **kwargs):
         "text/markdown",
     )
     sandbox.files["notes.html"] = (
-        b"<script>window.untrusted = true</script>",
+        "<h1>交付说明</h1><script>window.untrusted = true</script>".encode(),
         "text/html",
     )
     for key, parent, kind, label in reversed(nodes):
@@ -288,13 +316,19 @@ if __name__ == "__main__":
             allow_signup=True,
             secure_cookies=False,
         )
-        app = create_app(
-            settings,
-            runner=runner,
-            sandbox_factory=lambda user_id, session_id, settings: Workspace(
-                sessions.setdefault((user_id, session_id), {})
-            ),
-        )
+        # The browser suite provisions independent test identities from a single
+        # loopback IP. Keep real authentication and use a fixture-sized quota.
+        limiter = auth.RateLimit
+        with patch.object(
+            auth, "RateLimit", lambda limit, seconds: limiter(max(64, limit), seconds)
+        ):
+            app = create_app(
+                settings,
+                runner=runner,
+                sandbox_factory=lambda user_id, session_id, settings: Workspace(
+                    sessions.setdefault((user_id, session_id), {})
+                ),
+            )
 
         @app.post("/fixture/{run_id}/{phase}")
         async def advance(run_id: str, phase: str):

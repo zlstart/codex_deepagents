@@ -17,15 +17,31 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: uv sync --locked --group eval
+      - name: Validate local Langfuse deployment and app connection
+        env:
+          LLM_BASE_URL: http://model.invalid/v1
+          LLM_MODEL: ci
+          LLM_API_KEY: ci-config-check
+          DOCKER_GID: "1000"
+        run: |
+          config_dir=$(mktemp -d)
+          cp deploy/langfuse/init.py "$config_dir/init.py"
+          python "$config_dir/init.py"
+          test "$(stat -c %a "$config_dir/.env")" = 600
+          docker compose --env-file "$config_dir/.env" -f deploy/langfuse/compose.yaml config --quiet
+          docker compose --env-file "$config_dir/.env" -f compose.yaml -f deploy/langfuse/famsun.compose.yaml config --quiet
       - run: npm ci && npm run build
         working-directory: web
       - run: docker build -f deploy/helper.Dockerfile -t famsun-helper:local .
       - run: docker build -f deploy/sandbox.Dockerfile -t famsun-sandbox:local .
+      - run: sudo apt-get update && sudo apt-get install -y poppler-utils
+      - run: docker build -f deploy/preview.Dockerfile -t famsun-preview:local .
       - run: uv run --locked --group eval pytest -q
         env:
           FAMSUN_REQUIRE_DOCKER_TESTS: "true"
       - run: npx playwright install --with-deps chromium && npm test
         working-directory: web
         env:
+          FAMSUN_E2E_OFFICE: "true"
           FAMSUN_E2E_MODEL: ${{ github.workspace }}/evals/results/compose-pellet-recovery/pellet_mill/pellet.glb
       - run: docker build -f deploy/service.Dockerfile -t famsun-agent:ci .

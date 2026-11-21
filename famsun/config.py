@@ -79,6 +79,41 @@ def volume_options() -> dict[str, str]:
 
 
 @dataclass(frozen=True)
+class LangfuseConfig:
+    base_url: str
+    public_key: str
+    secret_key: str = field(repr=False)
+    capture_content: bool = False
+
+
+def langfuse_config() -> LangfuseConfig | None:
+    if not flag("FAMSUN_LANGFUSE_ENABLED", False):
+        return None
+    url = os.getenv("LANGFUSE_BASE_URL", "").strip().rstrip("/")
+    parts = urlsplit(url)
+    if (
+        parts.scheme not in {"http", "https"}
+        or not parts.hostname
+        or parts.username
+        or parts.password
+        or parts.query
+        or parts.fragment
+    ):
+        raise ValueError(
+            "Set LANGFUSE_BASE_URL to the explicit Langfuse HTTP(S) deployment URL"
+        )
+    public = os.getenv("LANGFUSE_PUBLIC_KEY", "").strip()
+    secret = os.getenv("LANGFUSE_SECRET_KEY", "").strip()
+    if not (public and secret):
+        raise ValueError(
+            "Langfuse requires LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY"
+        )
+    return LangfuseConfig(
+        url, public, secret, flag("FAMSUN_LANGFUSE_CAPTURE_CONTENT", False)
+    )
+
+
+@dataclass(frozen=True)
 class Settings:
     data_dir: Path = field(
         default_factory=lambda: Path(os.getenv("FAMSUN_DATA_DIR", "var")).resolve()
@@ -136,6 +171,20 @@ class Settings:
         default_factory=lambda: flag("FAMSUN_ALLOW_SIGNUP", False)
     )
     mcp_enabled: bool = field(default_factory=lambda: flag("FAMSUN_MCP_ENABLED", False))
+
+    langfuse: LangfuseConfig | None = field(default_factory=langfuse_config)
+    llm_stream_usage: bool | None = field(
+        default_factory=lambda: (
+            flag("FAMSUN_LLM_STREAM_USAGE", False)
+            if os.getenv("FAMSUN_LLM_STREAM_USAGE")
+            else None
+        )
+    )
+    preview_image: str = field(
+        default_factory=lambda: os.getenv(
+            "FAMSUN_PREVIEW_IMAGE", "famsun-preview:local"
+        )
+    )
 
     @property
     def checkpoint_path(self) -> Path:
